@@ -1,0 +1,11 @@
+// src/components/common/LoadingSpinner/index.jsx
+import React from 'react';
+import './LoadingSpinner.css';
+
+const LoadingSpinner = () => (
+ <div className="loading-spinner-container">
+   <div className="loading-spinner"></div>
+ </div>
+);
+
+export default LoadingSpinner;

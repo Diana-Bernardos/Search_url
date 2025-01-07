@@ -1,0 +1,39 @@
+
+
+/* Flexbox utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 0.5rem; }
+.gap-4 { gap: 1rem; }
+
+/* Spacing */
+.p-4 { padding: 1rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.m-4 { margin: 1rem; }
+.mt-4 { margin-top: 1rem; }
+.mb-4 { margin-bottom: 1rem; }
+
+/* Typography */
+.text-sm { font-size: 0.875rem; }
+.text-lg { font-size: 1.125rem; }
+.font-bold { font-weight: bold; }
+.text-center { text-align: center; }
+
+/* Colors */
+.text-primary { color: var(--primary); }
+.text-error { color: var(--error); }
+.bg-white { background-color: white; }
+
+/* Layout */
+.w-full { width: 100%; }
+.max-w-md { max-width: 28rem; }
+.rounded { border-radius: 0.25rem; }
+.shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+/* Visibility */
+.hidden { display: none; }
+.visible { visibility: visible; }

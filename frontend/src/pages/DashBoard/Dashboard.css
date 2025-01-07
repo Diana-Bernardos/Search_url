@@ -1,0 +1,118 @@
+/* src/pages/Dashboard/Dashboard.css */
+.dashboard-container {
+    min-height: calc(100vh - 64px);
+    padding: var(--spacing-xl);
+    background-color: var(--background-color);
+  }
+  
+  .dashboard-header {
+    margin-bottom: var(--spacing-xl);
+    text-align: center;
+    animation: fadeIn 0.5s ease-out;
+  }
+  
+  .dashboard-header h1 {
+    color: var(--text-primary);
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .welcome-message {
+    color: var(--text-secondary);
+    font-size: 1.125rem;
+  }
+  
+  .dashboard-content {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  
+  .results-section {
+    margin-top: var(--spacing-xl);
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-md);
+    animation: slideUp 0.5s ease-out;
+  }
+  
+  .results-title {
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    font-weight: 600;
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .dashboard-container {
+      padding: var(--spacing-lg);
+    }
+  
+    .dashboard-header h1 {
+      font-size: 1.75rem;
+    }
+  
+    .welcome-message {
+      font-size: 1rem;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .dashboard-container {
+      padding: var(--spacing-md);
+    }
+  
+    .dashboard-header h1 {
+      font-size: 1.5rem;
+    }
+  
+    .results-title {
+      font-size: 1.125rem;
+    }
+  }
+  
+  /* Animaciones */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Estados de carga y error */
+  .loading-state {
+    text-align: center;
+    padding: var(--spacing-xl);
+    color: var(--text-secondary);
+  }
+  
+  .error-message {
+    margin: var(--spacing-lg) 0;
+    padding: var(--spacing-md);
+    background-color: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: var(--border-radius-md);
+    color: var(--error-color);
+    animation: shake 0.5s ease-in-out;
+  }
+  
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
