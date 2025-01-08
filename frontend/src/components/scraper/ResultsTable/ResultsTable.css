@@ -1,35 +1,96 @@
 /* src/components/scraper/ResultsTable/ResultsTable.css */
 .results-table-container {
-    padding: var(--spacing-lg);
-    background-color: var(--surface-color);
-    border-radius: var(--border-radius-lg);
-  }
-  
-  /* Header y Filtros */
-  .table-header {
-    margin-bottom: var(--spacing-lg);
-  }
-  
-  .search-filter {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    flex-wrap: wrap;
-  }
-  
-  .search-box {
-    position: relative;
-    flex: 1;
-    min-width: 250px;
-  }
-  
-  .search-box svg {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-secondary);
-  }
+  padding: var(--spacing-lg);
+  background-color: var(--surface-color);
+  border-radius: var(--border-radius-lg);
+  overflow-x: auto; /* Para tablas anchas */
+}
+
+/* Header y Filtros */
+.table-header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.search-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 250px;
+}
+
+.search-box svg {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+}
+
+/* Estilos de la tabla */
+.table-wrapper {
+  overflow-x: auto; /* Para tablas anchas */
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse; /* Colapsa los bordes de las celdas */
+  border-spacing: 0; /* Elimina el espaciado entre celdas */
+  table-layout: fixed;
+}
+
+.results-table th,
+.results-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color); /* Borde inferior */
+  word-wrap: break-word; /* Permite que el texto se ajuste */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.results-table th {
+  font-weight: 600; /* Texto en negrita para los encabezados */
+  background-color: #f5f5f5; /* Color de fondo para los encabezados */
+}
+
+.results-table tr:hover {
+background-color: #f0f0f0;
+}
+
+.th-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.filter-row th input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  box-sizing: border-box; /* Asegura que el padding no afecte el ancho */
+}
+
+.no-results {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+}
+
+.delete-button{
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: red;
+}
   
   .search-box input {
     width: 100%;

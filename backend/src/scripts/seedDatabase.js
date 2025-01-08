@@ -1,5 +1,4 @@
-
-
+// src/scripts/seedDatabase.js
 const bcrypt = require('bcrypt');
 const pool = require('../config/database');
 const { mockData, testUsers } = require('../mock/testData');
@@ -9,10 +8,9 @@ async function seedDatabase() {
 
   try {
     await connection.beginTransaction();
-
     console.log('Iniciando inserción de datos de prueba...');
 
-    // Insertar usuarios de prueba
+    // Insertar usuarios
     for (const user of testUsers) {
       console.log(`Insertando usuario: ${user.username}`);
       
@@ -23,37 +21,35 @@ async function seedDatabase() {
       );
 
       const userId = userResult.insertId;
-      console.log(`Usuario creado con ID: ${userId}`);
-
-      // Insertar datos de scraping para cada usuario
+      
+      // Insertar datos de scraping
       for (const mockUrl of mockData.urls) {
-        console.log(`Procesando URL: ${mockUrl.url}`);
-        
         const [urlResult] = await connection.execute(
           'INSERT INTO urls_scrapeadas (user_id, url, titulo, descripcion) VALUES (?, ?, ?, ?)',
-          [userId, mockUrl.url, mockUrl.properties.title, mockUrl.properties.metaDescription]
+          [userId, mockUrl.url, mockUrl.title, mockUrl.description]
         );
 
         const urlId = urlResult.insertId;
 
-        // Insertar propiedades
-        for (const [key, value] of Object.entries(mockUrl.properties)) {
-          if (typeof value === 'object') {
-            for (const [subKey, subValue] of Object.entries(value)) {
+        // Insertar propiedades de manera recursiva
+        const saveProperties = async (properties, parentKey = '') => {
+          for (const [key, value] of Object.entries(properties)) {
+            const propertyKey = parentKey ? `${parentKey}_${key}` : key;
+            
+            if (typeof value === 'object' && value !== null) {
+              await saveProperties(value, propertyKey);
+            } else {
               await connection.execute(
                 'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
-                [urlId, `${key}_${subKey}`, String(subValue)]
+                [urlId, propertyKey, String(value)]
               );
             }
-          } else {
-            await connection.execute(
-              'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
-              [urlId, key, String(value)]
-            );
           }
-        }
+        };
 
-        // Insertar en historial
+        await saveProperties(mockUrl.properties);
+
+        // Registrar en historial
         await connection.execute(
           'INSERT INTO historial_busquedas (user_id, url) VALUES (?, ?)',
           [userId, mockUrl.url]
@@ -70,15 +66,13 @@ async function seedDatabase() {
     throw error;
   } finally {
     connection.release();
+    process.exit();
   }
 }
 
 // Ejecutar el script
 seedDatabase()
-  .then(() => {
-    console.log('Script completado exitosamente');
-    process.exit(0);
-  })
+  .then(() => console.log('Script completado exitosamente'))
   .catch(error => {
     console.error('Error en el script:', error);
     process.exit(1);

@@ -1,91 +1,56 @@
-// src/components/scraper/SearchForm/index.js
+// src/components/scraper/SearchForm/index.jsx
 import React, { useState } from 'react';
-import { Search, Link2 } from 'lucide-react';
-import './SearchForm.css';
+import axios from '../../../api/axios';
 
-const SearchForm = ({ onSubmit, loading }) => {
+const SearchForm = ({ onSubmit }) => {
   const [url, setUrl] = useState('');
-  const [isValidUrl, setIsValidUrl] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const validateUrl = (value) => {
-    try {
-      new URL(value);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const handleChange = (e) => {
-    const value = e.target.value;
-    setUrl(value);
-    if (value) {
-      setIsValidUrl(validateUrl(value));
-    } else {
-      setIsValidUrl(true);
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateUrl(url)) {
-      onSubmit(url);
-    } else {
-      setIsValidUrl(false);
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.post('/scraper/scrape', { url });
+      
+      if (response.data) {
+        onSubmit(response.data);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setError(error.response?.data?.error || 'Error al analizar la URL');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="search-form-container">
-      <form onSubmit={handleSubmit} className="search-form">
-        <div className="input-wrapper">
-          <Link2 
-            className="url-icon"
-            size={20}
-          />
-          <input
-            type="url"
-            value={url}
-            onChange={handleChange}
-            placeholder="Ingresa la URL del sitio web (ej: https://ejemplo.com)"
-            className={`search-input ${!isValidUrl ? 'invalid' : ''}`}
-            required
-          />
-          {!isValidUrl && (
-            <span className="validation-message">
-              Por favor, ingresa una URL válida
-            </span>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          className={`search-button ${loading ? 'loading' : ''}`}
-          disabled={loading || !isValidUrl}
+    <form onSubmit={handleSubmit} className="search-form">
+      <div className="input-group">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Introduce una URL para analizar"
+          required
+          className="search-input"
+        />
+        <button 
+          type="submit" 
+          disabled={loading}
+          className="search-button"
         >
-          {loading ? (
-            <>
-              <span className="loading-spinner"></span>
-              <span>Analizando...</span>
-            </>
-          ) : (
-            <>
-              <Search size={20} />
-              <span>Analizar URL</span>
-            </>
-          )}
+          {loading ? 'Analizando...' : 'Analizar URL'}
         </button>
-      </form>
-
-      <div className="search-tips">
-        <h3>Tips para el análisis:</h3>
-        <ul>
-          <li>Asegúrate de incluir el protocolo (http:// o https://)</li>
-          <li>Verifica que la URL sea accesible públicamente</li>
-          <li>Algunos sitios pueden requerir más tiempo de análisis</li>
-        </ul>
       </div>
-    </div>
+      {error && (
+        <div className="error-message">
+          {error}
+        </div>
+      )}
+    </form>
   );
 };
 
