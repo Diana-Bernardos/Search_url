@@ -1,6 +1,5 @@
 // src/middleware/auth.js
 const jwt = require('jsonwebtoken');
-const config = require('../config/config');
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -8,30 +7,24 @@ const authenticateToken = (req, res, next) => {
 
     if (!token) {
         return res.status(401).json({
-            error: 'No se proporcionó token de autenticación'
+            error: 'Token no proporcionado'
         });
     }
 
     try {
-        const decoded = jwt.verify(token, config.security.jwtSecret);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded;
         next();
-    } catch (error) {
-        console.error('Error de autenticación:', error);
-        
-        if (error.name === 'TokenExpiredError') {
-            return res.status(403).json({
-                error: 'Token expirado',
-                expired: true
+    } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                error: 'Token expirado'
             });
         }
-        
         return res.status(403).json({
-            error: 'Token inválido o expirado.'
+            error: 'Token inválido'
         });
     }
 };
 
-module.exports = {
-    authenticateToken
-};
+module.exports = { authenticateToken };

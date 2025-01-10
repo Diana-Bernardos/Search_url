@@ -6,10 +6,11 @@ const {
     scrapeUrl, 
     getScrapingHistory, 
     deleteProperty 
+    
 } = require('../controllers/scraperController');
 
 // Rutas del scraper
-router.post('/scrape', authenticateToken, (req, res, next) => {
+router.post('/analyze', authenticateToken, (req, res, next) => {
     console.log('Recibida petición de scraping:', req.body);
     scrapeUrl(req, res, next);
 });
