@@ -1,244 +1,220 @@
 // src/controllers/scraperController.js
 const pool = require('../config/database');
+const config = require('../config/config');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
 const scrapeUrl = async (req, res) => {
-   console.log("Entrando en scrapeUrl");
-   try {
-       const { url } = req.body;
-       const userId = req.user.id;
+    const connection = await pool.getConnection();
+    try {
+        const { url } = req.body;
+        const userId = req.user.id;
 
-       console.log('Iniciando scraping para:', { url, userId });
+        console.log('Iniciando scraping para:', { url, userId });
 
-       if (!url) {
-           return res.status(400).json({
-               success: false,
-               error: 'URL es requerida'
-           });
-       }
+        // Validación de URL
+        if (!url) {
+            return res.status(400).json({
+                error: 'URL es requerida'
+            });
+        }
 
-       // Validar URL
-       try {
-           new URL(url);
-       } catch (err) {
-           return res.status(400).json({
-               success: false,
-               error: 'URL inválida'
-           });
-       }
+        try {
+            new URL(url);
+        } catch (err) {
+            return res.status(400).json({
+                error: 'URL inválida'
+            });
+        }
 
-       // Realizar scraping
-       console.log('Iniciando petición HTTP a:', url);
-       const response = await axios.get(url, {
-           headers: {
-               'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)',
-               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-               'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3'
-           },
-           timeout: 15000,
-           maxRedirects: 5
-       });
+        // Registrar búsqueda
+        await connection.execute(
+            'INSERT INTO historial_busquedas (user_id, url, fecha) VALUES (?, ?, NOW())',
+            [userId, url]
+        );
 
-       const $ = cheerio.load(response.data);
+        // Realizar el scraping
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': config.scraper.userAgent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5'
+            },
+            timeout: config.limits.scraperTimeout,
+            maxRedirects: config.scraper.maxRedirects,
+            maxContentLength: config.scraper.maxResponseSize,
+            validateStatus: function (status) {
+                return status >= 200 && status < 300;
+            }
+        });
 
-       // Extraer información
-       const scrapedData = {
-           title: $('title').text().trim() || 'Sin título',
-           description: $('meta[name="description"]').attr('content') || 'Sin descripción',
-           properties: {
-               metadata: {
-                   title: $('title').text().trim() || 'Sin título',
-                   description: $('meta[name="description"]').attr('content') || 'Sin descripción',
-                   keywords: $('meta[name="keywords"]').attr('content') || 'Sin palabras clave',
-                   author: $('meta[name="author"]').attr('content') || 'Autor no especificado',
-                   language: $('html').attr('lang') || 'No especificado'
-               },
-               content: {
-                   headings: {
-                       h1: $('h1').length,
-                       h2: $('h2').length,
-                       h3: $('h3').length
-                   },
-                   links: $('a').length,
-                   images: $('img').length,
-                   paragraphs: $('p').length
-               },
-               social: {
-                   ogTitle: $('meta[property="og:title"]').attr('content') || '',
-                   ogDescription: $('meta[property="og:description"]').attr('content') || '',
-                   ogImage: $('meta[property="og:image"]').attr('content') || '',
-                   twitterCard: $('meta[name="twitter:card"]').attr('content') || '',
-                   twitterTitle: $('meta[name="twitter:title"]').attr('content') || ''
-               }
-           }
-       };
+        const $ = cheerio.load(response.data);
 
-       // Guardar en base de datos
-       const connection = await pool.getConnection();
-       try {
-           await connection.beginTransaction();
+        // Extraer propiedades
+        const properties = {
+            title: $('title').text().trim() || 'Sin título',
+            metaDescription: $('meta[name="description"]').attr('content') || 'Sin descripción',
+            headings: {
+                h1: $('h1').length,
+                h2: $('h2').length,
+                h3: $('h3').length
+            },
+            links: $('a').length,
+            images: $('img').length,
+            paragraphs: $('p').length,
+            metadata: {
+                keywords: $('meta[name="keywords"]').attr('content') || '',
+                author: $('meta[name="author"]').attr('content') || '',
+                robots: $('meta[name="robots"]').attr('content') || ''
+            },
+            socialMeta: {
+                ogTitle: $('meta[property="og:title"]').attr('content') || '',
+                ogDescription: $('meta[property="og:description"]').attr('content') || '',
+                ogImage: $('meta[property="og:image"]').attr('content') || ''
+            }
+        };
 
-           // Guardar URL principal
-           const [result] = await connection.execute(
-               'INSERT INTO urls_scrapeadas (user_id, url, titulo, descripcion) VALUES (?, ?, ?, ?)',
-               [userId, url, scrapedData.title, scrapedData.description]
-           );
+        // Iniciar transacción
+        await connection.beginTransaction();
 
-           const urlId = result.insertId;
+        // Guardar URL principal
+        const [result] = await connection.execute(
+            'INSERT INTO urls_scrapeadas (user_id, url, titulo, descripcion, fecha_scrapeo) VALUES (?, ?, ?, ?, NOW())',
+            [userId, url, properties.title, properties.metaDescription]
+        );
 
-           // Guardar propiedades de manera recursiva
-           const saveProperties = async (properties, parentKey = '') => {
-               for (const [key, value] of Object.entries(properties)) {
-                   const propertyKey = parentKey ? `${parentKey}_${key}` : key;
-                   
-                   if (typeof value === 'object' && value !== null) {
-                       await saveProperties(value, propertyKey);
-                   } else {
-                       await connection.execute(
-                           'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
-                           [urlId, propertyKey, String(value)]
-                       );
-                   }
-               }
-           };
+        const urlId = result.insertId;
 
-           await saveProperties(scrapedData.properties);
-           await connection.commit();
+        // Guardar propiedades
+        for (const [key, value] of Object.entries(properties)) {
+            if (typeof value === 'object' && value !== null) {
+                for (const [subKey, subValue] of Object.entries(value)) {
+                    await connection.execute(
+                        'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
+                        [urlId, `${key}_${subKey}`, String(subValue)]
+                    );
+                }
+            } else {
+                await connection.execute(
+                    'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
+                    [urlId, key, String(value)]
+                );
+            }
+        }
 
-           // Enviar respuesta
-           res.json({
-               success: true,
-               data: {
-                   id: urlId,
-                   url,
-                   title: scrapedData.title,
-                   description: scrapedData.description,
-                   properties: scrapedData.properties
-               }
-           });
+        // Confirmar transacción
+        await connection.commit();
 
-       } catch (dbError) {
-           await connection.rollback();
-           console.error('Error en base de datos:', dbError);
-           throw dbError;
-       } finally {
-           connection.release();
-       }
+        // Enviar respuesta
+        res.json({
+            message: 'Scraping completado exitosamente',
+            properties: properties
+        });
 
-   } catch (error) {
-       console.error('Error en scraping:', error);
-       
-       if (error.code === 'ECONNREFUSED') {
-           return res.status(503).json({
-               success: false,
-               error: 'No se pudo conectar con el sitio web',
-               details: error.message
-           });
-       }
+    } catch (error) {
+        // Rollback en caso de error
+        if (connection) {
+            await connection.rollback();
+        }
 
-       if (error.code === 'ETIMEDOUT') {
-           return res.status(504).json({
-               success: false,
-               error: 'Tiempo de espera excedido',
-               details: error.message
-           });
-       }
+        console.error('Error en scrapeUrl:', error);
 
-       res.status(500).json({
-           success: false,
-           error: 'Error al realizar el scraping',
-           details: error.message
-       });
-   }
+        // Manejar diferentes tipos de errores
+        if (error.code === 'ECONNABORTED') {
+            return res.status(408).json({
+                error: 'Tiempo de espera agotado al acceder a la URL'
+            });
+        }
+
+        if (error.response) {
+            return res.status(error.response.status || 500).json({
+                error: `Error al acceder a la URL: ${error.message}`
+            });
+        }
+
+        return res.status(500).json({
+            error: 'Error al procesar la URL',
+            details: error.message
+        });
+
+    } finally {
+        if (connection) {
+            connection.release();
+        }
+    }
 };
 
 const getScrapingHistory = async (req, res) => {
-   try {
-       const userId = req.user.id;
-       const [results] = await pool.execute(`
-           SELECT 
-               us.id,
-               us.url,
-               us.titulo as title,
-               us.descripcion as description,
-               us.fecha_scraping,
-               JSON_OBJECT(
-                   'metadata', JSON_OBJECT(
-                       'title', MAX(CASE WHEN ps.nombre_propiedad LIKE 'metadata_title%' THEN ps.valor_propiedad END),
-                       'description', MAX(CASE WHEN ps.nombre_propiedad LIKE 'metadata_description%' THEN ps.valor_propiedad END)
-                   ),
-                   'content', JSON_OBJECT(
-                       'links', MAX(CASE WHEN ps.nombre_propiedad = 'content_links' THEN ps.valor_propiedad END),
-                       'images', MAX(CASE WHEN ps.nombre_propiedad = 'content_images' THEN ps.valor_propiedad END)
-                   )
-               ) as properties
-           FROM urls_scrapeadas us
-           LEFT JOIN propiedades_scrapeadas ps ON us.id = ps.url_id
-           WHERE us.user_id = ?
-           GROUP BY us.id
-           ORDER BY us.fecha_scraping DESC
-       `, [userId]);
+    try {
+        const [rows] = await pool.execute(
+            `SELECT urls_scrapeadas.*, 
+             GROUP_CONCAT(CONCAT(propiedades_scrapeadas.nombre_propiedad, ':', propiedades_scrapeadas.valor_propiedad)) as propiedades
+             FROM urls_scrapeadas 
+             LEFT JOIN propiedades_scrapeadas ON urls_scrapeadas.id = propiedades_scrapeadas.url_id
+             WHERE urls_scrapeadas.user_id = ?
+             GROUP BY urls_scrapeadas.id
+             ORDER BY urls_scrapeadas.fecha_scrapeo DESC`,
+            [req.user.id]
+        );
 
-       res.json({
-           success: true,
-           data: results
-       });
-   } catch (error) {
-       console.error('Error al obtener historial:', error);
-       res.status(500).json({
-           success: false,
-           error: 'Error al obtener historial',
-           details: error.message
-       });
-   }
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener historial:', error);
+        res.status(500).json({
+            error: 'Error al obtener el historial'
+        });
+    }
 };
 
 const deleteProperty = async (req, res) => {
-   const connection = await pool.getConnection();
-   
-   try {
-       const { propertyId } = req.params;
-       const userId = req.user.id;
+    const connection = await pool.getConnection();
+    try {
+        const { propertyId } = req.params;
+        const userId = req.user.id;
 
-       const [property] = await connection.execute(`
-           SELECT ps.id 
-           FROM propiedades_scrapeadas ps
-           JOIN urls_scrapeadas us ON ps.url_id = us.id
-           WHERE ps.id = ? AND us.user_id = ?
-       `, [propertyId, userId]);
+        await connection.beginTransaction();
 
-       if (property.length === 0) {
-           return res.status(404).json({
-               success: false,
-               error: 'Propiedad no encontrada o no autorizada'
-           });
-       }
+        // Verificar que la propiedad pertenece al usuario
+        const [property] = await connection.execute(
+            `SELECT propiedades_scrapeadas.* 
+             FROM propiedades_scrapeadas 
+             INNER JOIN urls_scrapeadas ON urls_scrapeadas.id = propiedades_scrapeadas.url_id
+             WHERE propiedades_scrapeadas.id = ? AND urls_scrapeadas.user_id = ?`,
+            [propertyId, userId]
+        );
 
-       await connection.execute(
-           'DELETE FROM propiedades_scrapeadas WHERE id = ?',
-           [propertyId]
-       );
+        if (!property.length) {
+            await connection.rollback();
+            return res.status(404).json({
+                error: 'Propiedad no encontrada'
+            });
+        }
 
-       res.json({
-           success: true,
-           message: 'Propiedad eliminada exitosamente'
-       });
+        // Eliminar la propiedad
+        await connection.execute(
+            'DELETE FROM propiedades_scrapeadas WHERE id = ?',
+            [propertyId]
+        );
 
-   } catch (error) {
-       console.error('Error al eliminar propiedad:', error);
-       res.status(500).json({
-           success: false,
-           error: 'Error al eliminar propiedad',
-           details: error.message
-       });
-   } finally {
-       connection.release();
-   }
+        await connection.commit();
+
+        res.json({
+            message: 'Propiedad eliminada correctamente'
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error al eliminar propiedad:', error);
+        res.status(500).json({
+            error: 'Error al eliminar la propiedad'
+        });
+    } finally {
+        connection.release();
+    }
 };
 
 module.exports = {
-   scrapeUrl,
-   getScrapingHistory,
-   deleteProperty
+    scrapeUrl,
+    getScrapingHistory,
+    deleteProperty
 };
