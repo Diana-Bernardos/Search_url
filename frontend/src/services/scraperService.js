@@ -41,10 +41,23 @@ export const getScrapingHistory = async () => {
 
 export const deleteProperty = async (propertyId) => {
     try {
-        await api.delete(`/scraper/property/${propertyId}`);
-        return { success: true };
+        if (!propertyId) {
+            throw new Error('ID de propiedad no válido');
+        }
+
+        console.log('Eliminando propiedad:', propertyId);
+        const response = await api.delete(`/scraper/property/${propertyId}`);
+
+        if (!response.data.success) {
+            throw new Error(response.data.error || 'Error al eliminar la propiedad');
+        }
+
+        return response.data;
     } catch (error) {
         console.error('Error al eliminar propiedad:', error);
+        if (error.response?.status === 404) {
+            throw new Error('Propiedad no encontrada');
+        }
         throw new Error('Error al eliminar la propiedad');
     }
 };

@@ -145,22 +145,51 @@ const getScrapingHistory = async (req, res) => {
 const deleteProperty = async (req, res) => {
     let connection;
     try {
-        const { propertyId } = req.params;
+        const propertyId = req.params.propertyId;
+        const userId = req.user.id;
+
+        console.log('Intentando eliminar propiedad:', { propertyId, userId });
+
         connection = await pool.getConnection();
-        
-        const [rows] = await connection.execute(
-            'DELETE FROM propiedades_scrapeadas WHERE id = ? AND url_id IN (SELECT id FROM urls_scrapeadas WHERE user_id = ?)',
-            [propertyId, req.user.id]
+
+        // Primero verificamos que la propiedad existe y pertenece al usuario
+        const [property] = await connection.execute(
+            `SELECT ps.* 
+             FROM propiedades_scrapeadas ps
+             JOIN urls_scrapeadas us ON ps.url_id = us.id
+             WHERE ps.nombre_propiedad = ? 
+             AND us.user_id = ?`,
+            [propertyId, userId]
         );
 
-        if (rows.affectedRows === 0) {
-            return res.status(404).json({ error: 'Propiedad no encontrada' });
+        if (!property || property.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Propiedad no encontrada'
+            });
         }
 
-        res.json({ message: 'Propiedad eliminada correctamente' });
+        // Si existe, la eliminamos
+        await connection.execute(
+            `DELETE FROM propiedades_scrapeadas 
+             WHERE nombre_propiedad = ? 
+             AND url_id IN (SELECT id FROM urls_scrapeadas WHERE user_id = ?)`,
+            [propertyId, userId]
+        );
+
+        console.log('Propiedad eliminada con éxito');
+
+        res.json({
+            success: true,
+            message: 'Propiedad eliminada correctamente'
+        });
+
     } catch (error) {
         console.error('Error al eliminar propiedad:', error);
-        res.status(500).json({ error: 'Error al eliminar la propiedad' });
+        res.status(500).json({
+            success: false,
+            error: 'Error al eliminar la propiedad'
+        });
     } finally {
         if (connection) {
             connection.release();

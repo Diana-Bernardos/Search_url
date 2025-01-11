@@ -1,10 +1,9 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../config/axios.config';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+export const AuthProvider = ({ children }) => { // AuthProvider component
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -28,7 +27,20 @@ export const AuthProvider = ({ children }) => {
         checkAuth();
     }, []);
 
-    const login = async (credentials) => {
+    const register = async (userData) => {
+        try {
+            const response = await api.post('/auth/register', userData);
+            const { token, user } = response.data;
+            localStorage.setItem('token', token);
+            setUser(user);
+        } catch (error) {
+            console.error('Error en el registro:', error);
+            setError(error.response?.data?.error || error.message || 'Error al registrar usuario');
+            throw error;
+        }
+    };
+
+    const login = async (credentials) => { // Moved INSIDE AuthProvider
         try {
             const response = await api.post('/auth/login', credentials);
             const { token, user } = response.data;
@@ -40,7 +52,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
+    const logout = () => { // Moved INSIDE AuthProvider
         localStorage.removeItem('token');
         setUser(null);
     };
@@ -53,7 +65,8 @@ export const AuthProvider = ({ children }) => {
                 error,
                 login,
                 logout,
-                checkAuth
+                checkAuth,
+                register
             }}
         >
             {!loading && children}

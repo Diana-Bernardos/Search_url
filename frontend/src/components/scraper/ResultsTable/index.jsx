@@ -84,11 +84,21 @@ const ResultsTable = () => {
     }, [filteredData, sortConfig]);
 
     const handleDelete = async (propertyId) => {
-        if (window.confirm('¿Estás seguro de que deseas eliminar esta propiedad?')) {
-            try {
+        try {
+            if (window.confirm('¿Estás seguro de que deseas eliminar esta propiedad?')) {
                 await removeProperty(propertyId);
-            } catch (error) {
-                console.error('Error al eliminar:', error);
+                
+                // Actualizar la UI removiendo la propiedad eliminada
+                const updatedData = tableData.filter(item => item.id !== propertyId);
+                tableData(updatedData);
+            }
+        } catch (error) {
+            console.error('Error al eliminar:', error);
+            // Mostrar error al usuario
+            if (error.message.includes('no encontrada')) {
+                alert('La propiedad ya no existe');
+            } else {
+                alert('Error al eliminar la propiedad. Por favor, intenta de nuevo.');
             }
         }
     };
