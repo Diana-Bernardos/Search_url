@@ -1,58 +1,50 @@
 // src/services/scraperService.js
-import api from './api';
+import api from '../config/axios.config';
 
 export const scrapeUrl = async (url) => {
     try {
-        console.log('Analizando URL:', url);
+        // Validar URL
+        try {
+            new URL(url);
+        } catch {
+            throw new Error('URL inválida. Debe comenzar con http:// o https://');
+        }
+
         const response = await api.post('/scraper', { url });
 
         if (!response.data) {
             throw new Error('No se recibieron datos del servidor');
         }
 
-        console.log('Respuesta del servidor:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error en scrapeUrl:', error);
         
         if (!error.response) {
-            throw new Error('No se pudo conectar con el servidor. Por favor, verifica que el servidor esté corriendo.');
-        } else if (error.response.status === 403) {
-            throw new Error('No tienes permisos para realizar esta acción. Por favor, inicia sesión nuevamente.');
-        } else if (error.response.status === 400) {
-            throw new Error(error.response.data.error || 'La URL proporcionada no es válida');
+            throw new Error('Error de conexión con el servidor');
         }
 
-        throw new Error(error.response?.data?.error || 'Error al analizar la URL');
+        const errorMessage = error.response?.data?.error || 'Error al analizar la URL';
+        throw new Error(errorMessage);
     }
 };
 
-export const getHistorialBusquedas = async () => {
+export const getScrapingHistory = async () => {
     try {
         const response = await api.get('/scraper/history');
         return response.data;
     } catch (error) {
         console.error('Error al obtener historial:', error);
-        throw error.response?.data?.error || 'Error al obtener el historial';
+        throw new Error('Error al obtener el historial de búsquedas');
     }
 };
 
-export const eliminarPropiedad = async (propertyId) => {
+export const deleteProperty = async (propertyId) => {
     try {
-        const response = await api.delete(`/scraper/property/${propertyId}`);
-        return response.data;
+        await api.delete(`/scraper/property/${propertyId}`);
+        return { success: true };
     } catch (error) {
         console.error('Error al eliminar propiedad:', error);
-        throw error.response?.data?.error || 'Error al eliminar la propiedad';
-    }
-};
-
-export const guardarBusqueda = async (data) => {
-    try {
-        const response = await api.post('/scraper/save', data);
-        return response.data;
-    } catch (error) {
-        console.error('Error al guardar búsqueda:', error);
-        throw error.response?.data?.error || 'Error al guardar la búsqueda';
+        throw new Error('Error al eliminar la propiedad');
     }
 };

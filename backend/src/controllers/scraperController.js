@@ -1,51 +1,33 @@
 // src/controllers/scraperController.js
 const pool = require('../config/database');
-const config = require('../config/config');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
 const scrapeUrl = async (req, res) => {
-    const connection = await pool.getConnection();
+    let connection;
     try {
         const { url } = req.body;
         const userId = req.user.id;
 
-        console.log('Iniciando scraping para:', { url, userId });
-
-        // Validación de URL
+        // Validar URL
         if (!url) {
-            return res.status(400).json({
-                error: 'URL es requerida'
-            });
+            return res.status(400).json({ error: 'URL es requerida' });
         }
 
         try {
             new URL(url);
         } catch (err) {
-            return res.status(400).json({
-                error: 'URL inválida'
-            });
+            return res.status(400).json({ error: 'URL inválida' });
         }
 
-        // Registrar búsqueda
-        await connection.execute(
-            'INSERT INTO historial_busquedas (user_id, url, fecha) VALUES (?, ?, NOW())',
-            [userId, url]
-        );
-
-        // Realizar el scraping
+        // Hacer el scraping
         const response = await axios.get(url, {
             headers: {
-                'User-Agent': config.scraper.userAgent,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5'
+                'User-Agent': 'Mozilla/5.0 (compatible; ScraperBot/1.0;)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
             },
-            timeout: config.limits.scraperTimeout,
-            maxRedirects: config.scraper.maxRedirects,
-            maxContentLength: config.scraper.maxResponseSize,
-            validateStatus: function (status) {
-                return status >= 200 && status < 300;
-            }
+            timeout: 15000,
+            maxRedirects: 5
         });
 
         const $ = cheerio.load(response.data);
@@ -74,65 +56,57 @@ const scrapeUrl = async (req, res) => {
             }
         };
 
-        // Iniciar transacción
+        // Guardar en base de datos
+        connection = await pool.getConnection();
         await connection.beginTransaction();
 
-        // Guardar URL principal
         const [result] = await connection.execute(
-            'INSERT INTO urls_scrapeadas (user_id, url, titulo, descripcion, fecha_scrapeo) VALUES (?, ?, ?, ?, NOW())',
+            'INSERT INTO urls_scrapeadas (user_id, url, titulo, descripcion) VALUES (?, ?, ?, ?)',
             [userId, url, properties.title, properties.metaDescription]
         );
 
-        const urlId = result.insertId;
-
-        // Guardar propiedades
         for (const [key, value] of Object.entries(properties)) {
-            if (typeof value === 'object' && value !== null) {
+            if (typeof value === 'object') {
                 for (const [subKey, subValue] of Object.entries(value)) {
                     await connection.execute(
                         'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
-                        [urlId, `${key}_${subKey}`, String(subValue)]
+                        [result.insertId, `${key}_${subKey}`, String(subValue)]
                     );
                 }
             } else {
                 await connection.execute(
                     'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
-                    [urlId, key, String(value)]
+                    [result.insertId, key, String(value)]
                 );
             }
         }
 
-        // Confirmar transacción
         await connection.commit();
-
+        
         // Enviar respuesta
         res.json({
             message: 'Scraping completado exitosamente',
-            properties: properties
+            properties
         });
 
     } catch (error) {
-        // Rollback en caso de error
+        console.error('Error en scrapeUrl:', error);
+        
         if (connection) {
             await connection.rollback();
         }
 
-        console.error('Error en scrapeUrl:', error);
-
-        // Manejar diferentes tipos de errores
-        if (error.code === 'ECONNABORTED') {
-            return res.status(408).json({
-                error: 'Tiempo de espera agotado al acceder a la URL'
-            });
+        if (error.code === 'ECONNREFUSED') {
+            return res.status(400).json({ error: 'No se pudo conectar con la URL proporcionada' });
         }
 
-        if (error.response) {
-            return res.status(error.response.status || 500).json({
+        if (error.response?.status) {
+            return res.status(error.response.status).json({
                 error: `Error al acceder a la URL: ${error.message}`
             });
         }
 
-        return res.status(500).json({
+        res.status(500).json({
             error: 'Error al procesar la URL',
             details: error.message
         });
@@ -145,71 +119,52 @@ const scrapeUrl = async (req, res) => {
 };
 
 const getScrapingHistory = async (req, res) => {
+    let connection;
     try {
-        const [rows] = await pool.execute(
-            `SELECT urls_scrapeadas.*, 
-             GROUP_CONCAT(CONCAT(propiedades_scrapeadas.nombre_propiedad, ':', propiedades_scrapeadas.valor_propiedad)) as propiedades
-             FROM urls_scrapeadas 
-             LEFT JOIN propiedades_scrapeadas ON urls_scrapeadas.id = propiedades_scrapeadas.url_id
-             WHERE urls_scrapeadas.user_id = ?
-             GROUP BY urls_scrapeadas.id
-             ORDER BY urls_scrapeadas.fecha_scrapeo DESC`,
+        connection = await pool.getConnection();
+        const [rows] = await connection.query(
+            `SELECT us.*, GROUP_CONCAT(ps.nombre_propiedad) as propiedades 
+             FROM urls_scrapeadas us 
+             LEFT JOIN propiedades_scrapeadas ps ON us.id = ps.url_id 
+             WHERE us.user_id = ? 
+             GROUP BY us.id 
+             ORDER BY us.fecha_creacion DESC`,
             [req.user.id]
         );
-
         res.json(rows);
     } catch (error) {
         console.error('Error al obtener historial:', error);
-        res.status(500).json({
-            error: 'Error al obtener el historial'
-        });
+        res.status(500).json({ error: 'Error al obtener el historial' });
+    } finally {
+        if (connection) {
+            connection.release();
+        }
     }
 };
 
 const deleteProperty = async (req, res) => {
-    const connection = await pool.getConnection();
+    let connection;
     try {
         const { propertyId } = req.params;
-        const userId = req.user.id;
-
-        await connection.beginTransaction();
-
-        // Verificar que la propiedad pertenece al usuario
-        const [property] = await connection.execute(
-            `SELECT propiedades_scrapeadas.* 
-             FROM propiedades_scrapeadas 
-             INNER JOIN urls_scrapeadas ON urls_scrapeadas.id = propiedades_scrapeadas.url_id
-             WHERE propiedades_scrapeadas.id = ? AND urls_scrapeadas.user_id = ?`,
-            [propertyId, userId]
+        connection = await pool.getConnection();
+        
+        const [rows] = await connection.execute(
+            'DELETE FROM propiedades_scrapeadas WHERE id = ? AND url_id IN (SELECT id FROM urls_scrapeadas WHERE user_id = ?)',
+            [propertyId, req.user.id]
         );
 
-        if (!property.length) {
-            await connection.rollback();
-            return res.status(404).json({
-                error: 'Propiedad no encontrada'
-            });
+        if (rows.affectedRows === 0) {
+            return res.status(404).json({ error: 'Propiedad no encontrada' });
         }
 
-        // Eliminar la propiedad
-        await connection.execute(
-            'DELETE FROM propiedades_scrapeadas WHERE id = ?',
-            [propertyId]
-        );
-
-        await connection.commit();
-
-        res.json({
-            message: 'Propiedad eliminada correctamente'
-        });
-
+        res.json({ message: 'Propiedad eliminada correctamente' });
     } catch (error) {
-        await connection.rollback();
         console.error('Error al eliminar propiedad:', error);
-        res.status(500).json({
-            error: 'Error al eliminar la propiedad'
-        });
+        res.status(500).json({ error: 'Error al eliminar la propiedad' });
     } finally {
-        connection.release();
+        if (connection) {
+            connection.release();
+        }
     }
 };
 

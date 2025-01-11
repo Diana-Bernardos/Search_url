@@ -8,13 +8,29 @@ import './Dashboard.css';
 const Dashboard = () => {
     const [url, setUrl] = useState('');
     const { analyzeUrl, loading, error } = useScraper();
+    const [localError, setLocalError] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLocalError(null);
+
+        // Validar URL
+        if (!url.trim()) {
+            setLocalError('Por favor, ingresa una URL');
+            return;
+        }
+
+        // Procesar URL
         try {
-            await analyzeUrl(url);
+            let processedUrl = url;
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                processedUrl = `https://${url}`;
+            }
+
+            await analyzeUrl(processedUrl);
         } catch (err) {
             console.error('Error:', err);
+            setLocalError(err.message || 'Error al analizar la URL');
         }
     };
 
@@ -32,32 +48,29 @@ const Dashboard = () => {
                     <div className="input-wrapper">
                         <Search className="search-icon" size={20} />
                         <input
-                            type="url"
+                            type="text"
                             value={url}
                             onChange={(e) => setUrl(e.target.value)}
-                            placeholder="https://ejemplo.com"
-                            required
+                            placeholder="Ingresa una URL (ej: https://example.com)"
                             className="url-input"
                         />
                     </div>
                     <button 
                         type="submit" 
                         className="submit-button"
-                        disabled={loading}
+                        disabled={loading || !url.trim()}
                     >
                         {loading ? (
-                            <span className="loading-text">
-                                <span className="loading-dots">Analizando</span>
-                            </span>
+                            <span className="loading-text">Analizando...</span>
                         ) : (
                             'Analizar URL'
                         )}
                     </button>
                 </form>
 
-                {error && (
+                {(localError || error) && (
                     <div className="error-message">
-                        {error}
+                        {localError || error}
                     </div>
                 )}
             </div>

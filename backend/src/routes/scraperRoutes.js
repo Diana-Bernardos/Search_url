@@ -6,16 +6,29 @@ const {
     scrapeUrl, 
     getScrapingHistory, 
     deleteProperty 
-    
 } = require('../controllers/scraperController');
 
-// Rutas del scraper
-router.post('/analyze', authenticateToken, (req, res, next) => {
-    console.log('Recibida petición de scraping:', req.body);
-    scrapeUrl(req, res, next);
+// Log middleware
+router.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    if (req.method === 'POST') {
+        console.log('Body:', req.body);
+    }
+    next();
 });
-          // POST /api/scraper/scrape
-router.get('/history', authenticateToken, getScrapingHistory);  // GET /api/scraper/history
-router.delete('/property/:propertyId', authenticateToken, deleteProperty); // DELETE /api/scraper/property/:id
+
+// Rutas principales
+router.post('/', authenticateToken, scrapeUrl);
+router.get('/history', authenticateToken, getScrapingHistory);
+router.delete('/property/:propertyId', authenticateToken, deleteProperty);
+
+// Manejo de errores específico para las rutas del scraper
+router.use((error, req, res, next) => {
+    console.error('Error en ruta del scraper:', error);
+    res.status(500).json({
+        error: 'Error en el servidor',
+        message: error.message
+    });
+});
 
 module.exports = router;

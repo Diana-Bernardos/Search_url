@@ -1,109 +1,60 @@
 // src/services/scraperService.js
-const axios = require('axios');
-const cheerio = require('cheerio');
+import api from './api';
 
-class ScraperService {
-    async scrapeWebsite(url) {
+export const scrapeUrl = async (url) => {
+    try {
+        console.log('Analizando URL:', url);
+        
+        // Validar URL antes de enviar
         try {
-            const response = await axios.get(url, {
-                timeout: process.env.SCRAPER_TIMEOUT || 30000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; ScraperBot/1.0;)'
-                }
-            });
-
-            const $ = cheerio.load(response.data);
-            
-            return {
-                metadata: this.extractMetadata($),
-                content: this.extractContent($),
-                statistics: this.generateStatistics($)
-            };
-        } catch (error) {
-            throw new Error(`Error al scrapear ${url}: ${error.message}`);
+            new URL(url);
+        } catch (err) {
+            throw new Error('URL inválida. Debe comenzar con http:// o https://');
         }
-    }
 
-    extractMetadata($) {
-        return {
-            title: $('title').text().trim(),
-            description: $('meta[name="description"]').attr('content') || '',
-            keywords: $('meta[name="keywords"]').attr('content') || '',
-            author: $('meta[name="author"]').attr('content') || '',
-            favicon: $('link[rel="icon"]').attr('href') || ''
-        };
-    }
+        const response = await api.post('/scraper', { url });
 
-    extractContent($) {
-        return {
-            headings: {
-                h1: this.extractHeadings($, 'h1'),
-                h2: this.extractHeadings($, 'h2'),
-                h3: this.extractHeadings($, 'h3')
-            },
-            links: this.extractLinks($),
-            images: this.extractImages($),
-            text: this.extractText($)
-        };
-    }
+        if (!response.data) {
+            throw new Error('No se recibieron datos del servidor');
+        }
 
-    generateStatistics($) {
-        return {
-            wordCount: this.countWords($('body').text()),
-            linkCount: $('a').length,
-            imageCount: $('img').length,
-            headingCount: $('h1, h2, h3, h4, h5, h6').length,
-            paragraphCount: $('p').length
-        };
-    }
+        console.log('Respuesta del servidor:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error en scrapeUrl:', error);
+        
+        if (!error.response) {
+            throw new Error('Error de conexión con el servidor');
+        }
 
-    extractHeadings($, tag) {
-        const headings = [];
-        $(tag).each((i, elem) => {
-            headings.push($(elem).text().trim());
-        });
-        return headings;
-    }
+        if (error.response.status === 400) {
+            throw new Error(error.response.data.error || 'URL inválida');
+        }
 
-    extractLinks($) {
-        const links = [];
-        $('a').each((i, elem) => {
-            const href = $(elem).attr('href');
-            if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
-                links.push({
-                    text: $(elem).text().trim(),
-                    url: href
-                });
-            }
-        });
-        return links;
-    }
+        if (error.response.status === 500) {
+            throw new Error('Error al procesar la URL. Por favor, intenta con otra URL.');
+        }
 
-    extractImages($) {
-        const images = [];
-        $('img').each((i, elem) => {
-            const src = $(elem).attr('src');
-            if (src) {
-                images.push({
-                    src: src,
-                    alt: $(elem).attr('alt') || '',
-                    width: $(elem).attr('width') || '',
-                    height: $(elem).attr('height') || ''
-                });
-            }
-        });
-        return images;
+        throw error;
     }
+};
 
-    extractText($) {
-        return $('p').map((i, elem) => $(elem).text().trim()).get();
+export const getHistorialBusquedas = async () => {
+    try {
+        const response = await api.get('/scraper/history');
+        return response.data;
+    } catch (error) {
+        console.error('Error al obtener historial:', error);
+        throw new Error('Error al obtener el historial de búsquedas');
     }
+};
 
-    countWords(text) {
-        return text.trim().split(/\s+/).length;
+export const eliminarPropiedad = async (propertyId) => {
+    try {
+        const response = await api.delete(`/scraper/property/${propertyId}`);
+        return response.data;
+    } catch (error) {
+        console.error('Error al eliminar propiedad:', error);
+        throw new Error('Error al eliminar la propiedad');
     }
-}
-module.exports = {
-    ScraperService: new ScraperService(),
-    DatabaseService: new DatabaseService()
 };

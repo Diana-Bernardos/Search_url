@@ -9,42 +9,34 @@ const instance = axios.create({
     }
 });
 
-// Interceptor de peticiones
+// Interceptor para el token
 instance.interceptors.request.use(
     config => {
         const token = localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        console.log('Enviando petición a:', config.url, config.method.toUpperCase());
         return config;
     },
     error => {
-        console.error('Error en la petición:', error);
         return Promise.reject(error);
     }
 );
 
-// Interceptor de respuestas
+// Interceptor para manejar errores
 instance.interceptors.response.use(
-    response => {
-        console.log('Respuesta recibida de:', response.config.url);
-        return response;
-    },
+    response => response,
     error => {
         if (error.response) {
-            // El servidor respondió con un código de error
+            // Error con respuesta del servidor
             if (error.response.status === 401) {
                 localStorage.removeItem('token');
                 window.location.href = '/login';
             }
-            console.error('Error del servidor:', error.response.data);
+            return Promise.reject(error);
         } else if (error.request) {
-            // La petición se realizó pero no se recibió respuesta
-            console.error('No se recibió respuesta del servidor');
-        } else {
-            // Error en la configuración de la petición
-            console.error('Error de configuración:', error.message);
+            // Error de red
+            return Promise.reject(new Error('Error de conexión con el servidor'));
         }
         return Promise.reject(error);
     }

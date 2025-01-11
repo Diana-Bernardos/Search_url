@@ -1,10 +1,9 @@
 // src/context/ScraperContext.jsx
 import React, { createContext, useContext, useState } from 'react';
 import { 
-    scrapeUrl as analyzeUrlService,
-    getHistorialBusquedas,
-    eliminarPropiedad,
-    guardarBusqueda
+    scrapeUrl as scrapeUrlService,
+    getScrapingHistory,
+    deleteProperty
 } from '../services/scraperService';
 
 const ScraperContext = createContext(null);
@@ -19,23 +18,21 @@ export const ScraperProvider = ({ children }) => {
         setLoading(true);
         setError(null);
         try {
-            console.log('Iniciando análisis de URL:', url);
-            const response = await analyzeUrlService(url);
+            const response = await scrapeUrlService(url);
             
+            // Formatear los resultados
             const formattedResults = {
                 data: {
-                    properties: response.properties || {},
-                    url: url  // Guardamos la URL también
+                    url: url,
+                    properties: response.properties || {}
                 }
             };
             
-            console.log('Resultados formateados:', formattedResults);
             setResults(formattedResults);
-            
             return formattedResults;
         } catch (err) {
             console.error('Error en analyzeUrl:', err);
-            setError(err.message || 'Error al analizar la URL');
+            setError(err.message);
             throw err;
         } finally {
             setLoading(false);
@@ -45,13 +42,12 @@ export const ScraperProvider = ({ children }) => {
     const fetchHistory = async () => {
         setLoading(true);
         try {
-            const data = await getHistorialBusquedas();
+            const data = await getScrapingHistory();
             setHistory(data);
             return data;
         } catch (err) {
             console.error('Error al obtener historial:', err);
             setError(err.message);
-            throw err;
         } finally {
             setLoading(false);
         }
@@ -59,17 +55,14 @@ export const ScraperProvider = ({ children }) => {
 
     const removeProperty = async (propertyId) => {
         try {
-            await eliminarPropiedad(propertyId);
+            await deleteProperty(propertyId);
+            
+            // Actualizar el estado local
             setResults(prevResults => {
-                if (!prevResults?.data?.properties) {
-                    console.log('No hay propiedades para eliminar');
-                    return prevResults;
-                }
+                if (!prevResults?.data?.properties) return prevResults;
                 
                 const newProperties = { ...prevResults.data.properties };
                 delete newProperties[propertyId];
-                
-                console.log('Propiedades actualizadas después de eliminar:', newProperties);
                 
                 return {
                     data: {
@@ -78,41 +71,17 @@ export const ScraperProvider = ({ children }) => {
                     }
                 };
             });
-        } catch (error) {
-            console.error('Error al eliminar propiedad:', error);
-            setError('Error al eliminar la propiedad');
-            throw error;
+        } catch (err) {
+            console.error('Error al eliminar propiedad:', err);
+            setError(err.message);
+            throw err;
         }
     };
 
-    const saveSearch = async () => {
-        try {
-            if (!results?.data?.properties) {
-                throw new Error('No hay resultados para guardar');
-            }
-
-            setLoading(true);
-            await guardarBusqueda({
-                url: results.data.url,
-                properties: results.data.properties
-            });
-
-            await fetchHistory();
-            return true;
-        } catch (error) {
-            console.error('Error al guardar búsqueda:', error);
-            setError(error.message || 'Error al guardar la búsqueda');
-            throw error;
-        } finally {
-            setLoading(false);
-        }
+    const clearResults = () => {
+        setResults(null);
+        setError(null);
     };
-
-    React.useEffect(() => {
-        if (results) {
-            console.log('Estado actual de results:', results);
-        }
-    }, [results]);
 
     return (
         <ScraperContext.Provider
@@ -124,7 +93,7 @@ export const ScraperProvider = ({ children }) => {
                 analyzeUrl,
                 fetchHistory,
                 removeProperty,
-                saveSearch,
+                clearResults,
                 setError
             }}
         >
