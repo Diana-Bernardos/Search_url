@@ -18,7 +18,13 @@ app.use(express.urlencoded({ extended: true }));
 
 // Logging middleware
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    
+    // Log del cuerpo de la solicitud para solicitudes POST
+    if (req.method === 'POST') {
+        console.log('Cuerpo de la solicitud:', req.body);
+    }
+    
     next();
 });
 
@@ -45,9 +51,12 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(500).json({ 
-        error: err.message || 'Error interno del servidor' 
+    console.error('Error global detectado:', err);
+    
+    res.status(500).json({
+        error: 'Error interno del servidor',
+        message: err.message,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
 });
 

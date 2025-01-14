@@ -1,36 +1,48 @@
-// src/middleware/auth.js
-const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken'); // Añade esta línea al principio del archivo
 
 const authenticateToken = (req, res, next) => {
-    try {
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-        if (!token) {
-            return res.status(401).json({
-                error: 'No se proporcionó token de autenticación'
+    console.log('Token recibido en middleware:', token); // Log adicional para depuración
+
+    if (!token) {
+        return res.status(401).json({
+            error: 'No se proporcionó token de autenticación'
+        });
+    }
+
+    try {
+        // Verificar que JWT_SECRET esté definido
+        if (!process.env.JWT_SECRET) {
+            console.error('JWT_SECRET no está definido en las variables de entorno');
+            return res.status(500).json({
+                error: 'Error de configuración del servidor'
             });
         }
 
-        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-            if (err) {
-                if (err.name === 'TokenExpiredError') {
-                    return res.status(401).json({
-                        error: 'Token expirado'
-                    });
-                }
-                return res.status(403).json({
-                    error: 'Token inválido'
-                });
-            }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        console.error('Error de autenticación:', err);
 
-            req.user = decoded;
-            next();
-        });
-    } catch (error) {
-        console.error('Error en autenticación:', error);
-        res.status(500).json({
-            error: 'Error en la autenticación'
+        if (err.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                error: 'Token expirado'
+            });
+        }
+
+        if (err.name === 'JsonWebTokenError') {
+            return res.status(403).json({
+                error: 'Token inválido'
+            });
+        }
+
+        // Manejamos cualquier otro error de autenticación
+        return res.status(500).json({
+            error: 'Error en la autenticación',
+            details: err.message
         });
     }
 };

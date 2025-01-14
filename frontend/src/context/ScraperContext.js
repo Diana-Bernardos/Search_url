@@ -1,16 +1,15 @@
-// src/context/ScraperContext.jsx
 import React, { createContext, useContext, useState } from 'react';
 import { 
-    scrapeUrl as scrapeUrlService,
-    getScrapingHistory,
-    deleteProperty
+    scrapeUrl, 
+    preAnalyzeUrl, 
+    deleteProperty 
 } from '../services/scraperService';
 
 const ScraperContext = createContext(null);
 
 export const ScraperProvider = ({ children }) => {
     const [results, setResults] = useState(null);
-    const [history, setHistory] = useState([]);
+    const [preAnalysis, setPreAnalysis] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -18,46 +17,49 @@ export const ScraperProvider = ({ children }) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await scrapeUrlService(url);
-            
-            // Formatear los resultados
+            // Validación y formateo de URL
+            if (!url || typeof url !== 'string') {
+                throw new Error('URL inválida. Debe ser una cadena de texto.');
+            }
+    
+            // Asegurar que la URL tenga un protocolo
+            const formattedUrl = url.match(/^https?:\/\//) 
+                ? url 
+                : `https://${url.replace(/^\/+/, '')}`;
+    
+            // Primero hacemos el pre-análisis
+            const preAnalysisResult = await preAnalyzeUrl(formattedUrl);
+            setPreAnalysis(preAnalysisResult);
+    
+            // Luego hacemos el análisis completo
+            const response = await scrapeUrl(formattedUrl);
+    
             const formattedResults = {
                 data: {
-                    url: url,
-                    properties: response.properties || {}
+                    url: formattedUrl,
+                    properties: response.data?.data?.properties || {}, 
+                    aiRecommendation: response.data?.data?.aiRecommendation || '',
+                    preAnalysis: preAnalysisResult
                 }
             };
-            
+    
+            console.log('Resultados formateados:', formattedResults);
             setResults(formattedResults);
+    
             return formattedResults;
         } catch (err) {
-            console.error('Error en analyzeUrl:', err);
-            setError(err.message);
+            console.error('Error completo en analyzeUrl:', err);
+            setError(err.message || 'Error al analizar la URL');
             throw err;
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchHistory = async () => {
-        setLoading(true);
-        try {
-            const data = await getScrapingHistory();
-            setHistory(data);
-            return data;
-        } catch (err) {
-            console.error('Error al obtener historial:', err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const removeProperty = async (propertyId) => {
+    const deleteProperty = async (propertyId) => {
         try {
             await deleteProperty(propertyId);
             
-            // Actualizar el estado local
             setResults(prevResults => {
                 if (!prevResults?.data?.properties) return prevResults;
                 
@@ -71,29 +73,22 @@ export const ScraperProvider = ({ children }) => {
                     }
                 };
             });
-        } catch (err) {
-            console.error('Error al eliminar propiedad:', err);
-            setError(err.message);
-            throw err;
+        } catch (error) {
+            console.error('Error al eliminar propiedad:', error);
+            setError('Error al eliminar la propiedad');
+            throw error;
         }
-    };
-
-    const clearResults = () => {
-        setResults(null);
-        setError(null);
     };
 
     return (
         <ScraperContext.Provider
             value={{
                 results,
-                history,
+                preAnalysis,
                 loading,
                 error,
                 analyzeUrl,
-                fetchHistory,
-                removeProperty,
-                clearResults,
+                
                 setError
             }}
         >

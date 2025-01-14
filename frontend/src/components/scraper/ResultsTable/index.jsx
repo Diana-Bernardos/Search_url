@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { FaEye } from 'react-icons/fa';
 import { 
     Search, 
     XCircle, 
@@ -11,40 +12,78 @@ import { useScraper } from '../../../context/ScraperContext';
 import './ResultsTable.css';
 
 const ResultsTable = () => {
-    const { results, loading, error, removeProperty } = useScraper();
-    const [filters, setFilters] = useState({});
+    const { results, loading, error, removeProperty, preAnalysis } = useScraper();
+    const [filters, setFilters] = useState({
+        property: '',
+        value: '',
+        minPrice: '',
+        maxPrice: '',
+        rooms: '',
+        location: ''
+    });
+    const [selectedRecommendation, setSelectedRecommendation] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({
         key: null,
         direction: 'asc'
     });
 
-    // Log para debug
-    console.log('Results en ResultsTable:', results);
-
     const tableData = useMemo(() => {
-        // Modificamos esta parte para acceder a la estructura correcta
-        if (!results?.data?.properties) {
-            console.log('No hay propiedades en results');
-            return [];
-        }
+        if (!results?.data?.properties) return [];
 
         try {
             const properties = results.data.properties;
-            return Object.entries(properties).flatMap(([key, value]) => {
-                if (typeof value === 'object' && value !== null) {
-                    return Object.entries(value).map(([subKey, subValue]) => ({
-                        id: `${key}_${subKey}`,
-                        property: `${key} - ${subKey}`,
-                        value: String(subValue)
-                    }));
+            const data = [];
+
+            // Estrategias de procesamiento de datos
+            const processingStrategies = {
+                'Precio': (value) => {
+                    const price = parseFloat(value.replace(/[^\d.]/g, ''));
+                    return { 
+                        id: 'price', 
+                        property: 'Precio', 
+                        value: price ? `${price.toLocaleString()}€` : 'No especificado',
+                        numericValue: price || 0
+                    };
+                },
+                'Habitaciones': (value) => ({
+                    id: 'rooms',
+                    property: 'Habitaciones', 
+                    value: value,
+                    numericValue: parseInt(value) || 0
+                }),
+                'Ubicación': (value) => ({
+                    id: 'location',
+                    property: 'Ubicación',
+                    value: value
+                })
+            };
+
+            // Procesar datos con estrategias específicas
+            Object.entries(properties).forEach(([key, value]) => {
+                const strategy = processingStrategies[key];
+                if (strategy) {
+                    data.push(strategy(value));
+                } else {
+                    data.push({
+                        id: key,
+                        property: key,
+                        value: String(value)
+                    });
                 }
-                return [{
-                    id: key,
-                    property: key,
-                    value: String(value)
-                }];
             });
+
+            // Añadir recomendación de IA
+            if (results.data.aiRecommendation) {
+                data.push({
+                    id: 'ai_recommendation',
+                    property: 'Recomendación IA',
+                    value: results.data.aiRecommendation,
+                    expanded: true // Nueva propiedad para expandir
+                });
+            }
+
+            return data;
         } catch (error) {
             console.error('Error al procesar datos:', error);
             return [];
@@ -57,9 +96,26 @@ const ResultsTable = () => {
                 item.property.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.value.toLowerCase().includes(searchTerm.toLowerCase());
 
+            // Filtros específicos
             const filterMatch = Object.entries(filters).every(([key, value]) => {
                 if (!value) return true;
-                return String(item[key]).toLowerCase().includes(value.toLowerCase());
+
+                switch(key) {
+                    case 'minPrice':
+                        return item.id === 'price' ? 
+                            item.numericValue >= parseFloat(value) : true;
+                    case 'maxPrice':
+                        return item.id === 'price' ? 
+                            item.numericValue <= parseFloat(value) : true;
+                    case 'rooms':
+                        return item.id === 'rooms' ? 
+                            item.numericValue === parseInt(value) : true;
+                    case 'location':
+                        return item.id === 'location' ? 
+                            item.value.toLowerCase().includes(value.toLowerCase()) : true;
+                    default:
+                        return String(item[key]).toLowerCase().includes(value.toLowerCase());
+                }
             });
 
             return searchMatch && filterMatch;
@@ -70,8 +126,8 @@ const ResultsTable = () => {
         if (!sortConfig.key) return filteredData;
 
         return [...filteredData].sort((a, b) => {
-            const aValue = String(a[sortConfig.key]);
-            const bValue = String(b[sortConfig.key]);
+            const aValue = a.numericValue !== undefined ? a.numericValue : a.value;
+            const bValue = b.numericValue !== undefined ? b.numericValue : b.value;
 
             if (aValue < bValue) {
                 return sortConfig.direction === 'asc' ? -1 : 1;
@@ -87,19 +143,10 @@ const ResultsTable = () => {
         try {
             if (window.confirm('¿Estás seguro de que deseas eliminar esta propiedad?')) {
                 await removeProperty(propertyId);
-                
-                // Actualizar la UI removiendo la propiedad eliminada
-                const updatedData = tableData.filter(item => item.id !== propertyId);
-                tableData(updatedData);
             }
         } catch (error) {
             console.error('Error al eliminar:', error);
-            // Mostrar error al usuario
-            if (error.message.includes('no encontrada')) {
-                alert('La propiedad ya no existe');
-            } else {
-                alert('Error al eliminar la propiedad. Por favor, intenta de nuevo.');
-            }
+            alert('Error al eliminar la propiedad. Por favor, intenta de nuevo.');
         }
     };
 
@@ -114,7 +161,14 @@ const ResultsTable = () => {
     };
 
     const clearFilters = () => {
-        setFilters({});
+        setFilters({
+            property: '',
+            value: '',
+            minPrice: '',
+            maxPrice: '',
+            rooms: '',
+            location: ''
+        });
         setSearchTerm('');
     };
 
@@ -147,6 +201,72 @@ const ResultsTable = () => {
 
     return (
         <div className="results-table-container">
+            <div className="filters-section">
+                <div className="price-filters">
+                    <input
+                        type="number"
+                        placeholder="Precio mínimo"
+                        value={filters.minPrice}
+                        onChange={(e) => setFilters(prev => ({
+                            ...prev,
+                            minPrice: e.target.value
+                        }))}
+                    />
+                    <input
+                        type="number"
+                        placeholder="Precio máximo"
+                        value={filters.maxPrice}
+                        onChange={(e) => setFilters(prev => ({
+                            ...prev,
+                            maxPrice: e.target.value
+                        }))}
+                    />
+                </div>
+                <div className="rooms-filter">
+                    <select
+                        value={filters.rooms}
+                        onChange={(e) => setFilters(prev => ({
+                            ...prev,
+                            rooms: e.target.value
+                        }))}
+                    >
+                        <option value="">Habitaciones</option>
+                        <option value="1">1 Habitación</option>
+                        <option value="2">2 Habitaciones</option>
+                        <option value="3">3 Habitaciones</option>
+                        <option value="4">4+ Habitaciones</option>
+                    </select>
+                </div>
+                <input
+                    type="text"
+                    placeholder="Filtrar por ubicación"
+                    value={filters.location}
+                    onChange={(e) => setFilters(prev => ({
+                        ...prev,
+                        location: e.target.value
+                    }))}
+                />
+            </div>
+
+            {Object.entries(filters).some(([key, value]) => value) && (
+                <div className="applied-filters">
+                    {Object.entries(filters)
+                        .filter(([key, value]) => value)
+                        .map(([key, value]) => (
+                            <div key={key} className="applied-filter-tag">
+                                {key}: {value}
+                                <span 
+                                    className="remove-filter" 
+                                    onClick={() => setFilters(prev => ({...prev, [key]: ''}))}
+                                >
+                                    <XCircle size={16} />
+                                </span>
+                            </div>
+                        ))
+                    }
+                </div>
+            )}
+
             <div className="table-header">
                 <div className="search-filter">
                     <div className="search-box">
@@ -167,7 +287,7 @@ const ResultsTable = () => {
                         )}
                     </div>
                     
-                    {(Object.keys(filters).length > 0 || searchTerm) && (
+                    {(Object.keys(filters).some(key => filters[key]) || searchTerm) && (
                         <button
                             className="clear-filters-button"
                             onClick={clearFilters}
@@ -197,49 +317,46 @@ const ResultsTable = () => {
                             </th>
                             <th>Acciones</th>
                         </tr>
-                        <tr className="filter-row">
-                            <th>
-                                <input
-                                    type="text"
-                                    placeholder="Filtrar propiedad..."
-                                    value={filters.property || ''}
-                                    onChange={(e) => setFilters(prev => ({
-                                        ...prev,
-                                        property: e.target.value
-                                    }))}
-                                />
-                            </th>
-                            <th>
-                                <input
-                                    type="text"
-                                    placeholder="Filtrar valor..."
-                                    value={filters.value || ''}
-                                    onChange={(e) => setFilters(prev => ({
-                                        ...prev,
-                                        value: e.target.value
-                                    }))}
-                                />
-                            </th>
-                            <th></th>
-                        </tr>
                     </thead>
                     <tbody>
                         {sortedData.map((item) => (
-                            <tr key={item.id}>
-                                <td className="truncated-cell" data-full-text={item.property}>
+                            <tr 
+                                key={item.id} 
+                                className={item.isAiRecommendation ? 'ai-recommendation-row' : ''}
+                            >
+                                <td 
+                                    className="truncated-cell" 
+                                    data-full-text={item.property}
+                                >
                                     {item.property}
                                 </td>
-                                <td className="truncated-cell" data-full-text={item.value}>
-                                    {item.value}
+                                <td 
+                                    className={`truncated-cell ${item.isAiRecommendation ? 'ai-recommendation' : ''}`} 
+                                    data-full-text={item.value}
+                                >
+                                    {item.value.length > 100 && !item.isAiRecommendation 
+                                        ? item.value.slice(0, 100) + '...' 
+                                        : item.value}
                                 </td>
                                 <td>
-                                    <button
-                                        className="delete-button"
-                                        onClick={() => handleDelete(item.id)}
-                                        title="Eliminar propiedad"
-                                    >
-                                        <MinusCircle />
-                                    </button>
+                                    {item.isAiRecommendation ? (
+                                        <button
+                                            className="view-recommendation-button"
+                                            onClick={() => setSelectedRecommendation(item.value)}
+                                            title="Ver recomendación completa"
+                                        >
+                                            <FaEye />
+                                        
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className="delete-button"
+                                            onClick={() => handleDelete(item.id)}
+                                            title="Eliminar propiedad"
+                                        >
+                                            <MinusCircle />
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -253,6 +370,27 @@ const ResultsTable = () => {
                     </tbody>
                 </table>
             </div>
+
+            {/* Modal para recomendación de IA */}
+            {selectedRecommendation && (
+                <div className="ai-recommendation-modal" onClick={() => setSelectedRecommendation(null)}>
+                    <div 
+                        className="modal-content" 
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button 
+                            className="modal-close-button" 
+                            onClick={() => setSelectedRecommendation(null)}
+                        >
+                            <XCircle />
+                        </button>
+                        <h2>Recomendación de IA</h2>
+                        <div className="modal-recommendation-text">
+                            {selectedRecommendation}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
