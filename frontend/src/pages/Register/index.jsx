@@ -59,6 +59,7 @@ const Register = () => {
           onChange={(e) => setFormData({...formData, username: e.target.value})}
           placeholder="Nombre de usuario"
           required
+          autoComplete="username"
         />
         <input
           type="email"
@@ -67,6 +68,8 @@ const Register = () => {
           onChange={(e) => setFormData({...formData, email: e.target.value})}
           placeholder="Email"
           required
+          autoComplete="username"
+
         />
         <input
           type="password"
@@ -75,6 +78,7 @@ const Register = () => {
           onChange={(e) => setFormData({...formData, password: e.target.value})}
           placeholder="Contraseña"
           required
+          autoComplete="current-password"
         />
         <input
           type="password"
@@ -83,6 +87,7 @@ const Register = () => {
           onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
           placeholder="Confirmar contraseña"
           required
+          autoComplete="new-password"
         />
         <button type="submit">Registrarse</button>
       </form>

@@ -1,109 +1,142 @@
-// src/services/scraperService.js
-const axios = require('axios');
-const cheerio = require('cheerio');
+import api from '../config/axios.config'; // Ajusta la ruta de importación
 
-class ScraperService {
-    async scrapeWebsite(url) {
-        try {
-            const response = await axios.get(url, {
-                timeout: process.env.SCRAPER_TIMEOUT || 30000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; ScraperBot/1.0;)'
-                }
-            });
-
-            const $ = cheerio.load(response.data);
-            
-            return {
-                metadata: this.extractMetadata($),
-                content: this.extractContent($),
-                statistics: this.generateStatistics($)
-            };
-        } catch (error) {
-            throw new Error(`Error al scrapear ${url}: ${error.message}`);
+export const AnalyzeUrl = async (url) => {
+    try {
+        // Validación y formateo de URL
+        if (!url || typeof url !== 'string') {
+            throw new Error('URL inválida. Debe ser una cadena de texto.');
         }
-    }
 
-    extractMetadata($) {
-        return {
-            title: $('title').text().trim(),
-            description: $('meta[name="description"]').attr('content') || '',
-            keywords: $('meta[name="keywords"]').attr('content') || '',
-            author: $('meta[name="author"]').attr('content') || '',
-            favicon: $('link[rel="icon"]').attr('href') || ''
-        };
-    }
+        const formattedUrl = url.match(/^https?:\/\//) 
+            ? url 
+            : `https://${url.replace(/^\/+/, '')}`;
 
-    extractContent($) {
-        return {
-            headings: {
-                h1: this.extractHeadings($, 'h1'),
-                h2: this.extractHeadings($, 'h2'),
-                h3: this.extractHeadings($, 'h3')
-            },
-            links: this.extractLinks($),
-            images: this.extractImages($),
-            text: this.extractText($)
-        };
-    }
+        const response = await api.post('/scraper/pre-analyze', { url: formattedUrl });
 
-    generateStatistics($) {
-        return {
-            wordCount: this.countWords($('body').text()),
-            linkCount: $('a').length,
-            imageCount: $('img').length,
-            headingCount: $('h1, h2, h3, h4, h5, h6').length,
-            paragraphCount: $('p').length
-        };
-    }
+        if (!response.data) {
+            throw new Error('No se recibieron datos del pre-análisis');
+        }
 
-    extractHeadings($, tag) {
-        const headings = [];
-        $(tag).each((i, elem) => {
-            headings.push($(elem).text().trim());
-        });
-        return headings;
-    }
+        return response.data;
+    } catch (error) {
+        console.error('Error en pre-análisis:', error);
+        
+        if (error.response) {
+            console.error('Detalles del error del servidor:', error.response.data);
+        }
 
-    extractLinks($) {
-        const links = [];
-        $('a').each((i, elem) => {
-            const href = $(elem).attr('href');
-            if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
-                links.push({
-                    text: $(elem).text().trim(),
-                    url: href
-                });
+        throw new Error(
+            error.response?.data?.error || 
+            error.message || 
+            'Error en el pre-análisis'
+        );
+    }
+};
+
+export const deleteProperty = async (propertyId) => {
+    try {
+        if (!propertyId) {
+            throw new Error('ID de propiedad no válido');
+        }
+
+        const response = await api.post('/scraper/delete-property', { propertyId });
+
+        if (!response.data.success) {
+            throw new Error(response.data.error || 'Error al eliminar la propiedad');
+        }
+
+        return response.data;
+    } catch (error) {
+        console.error('Error al eliminar propiedad:', error);
+        
+        if (error.response?.status === 404) {
+            throw new Error('Propiedad no encontrada');
+        }
+        
+        throw new Error('Error al eliminar la propiedad');
+    }
+};
+
+export const scrapeUrl = async (url) => {
+    try {
+        // Validación y formateo de URL
+        if (!url || typeof url !== 'string') {
+            throw new Error('URL inválida. Debe ser una cadena de texto.');
+        }
+
+        const formattedUrl = url.match(/^https?:\/\//) 
+            ? url 
+            : `https://${url.replace(/^\/+/, '')}`;
+
+        // Configuración de axios más detallada
+        const response = await api.post('/scraper', { 
+            url: formattedUrl 
+        }, {
+            // Aumentar el tiempo de espera
+            timeout: 30000,
+            // Manejar específicamente diferentes tipos de errores
+            validateStatus: function (status) {
+                return status >= 200 && status < 500; // Rechazar solo errores de servidor
             }
         });
-        return links;
-    }
 
-    extractImages($) {
-        const images = [];
-        $('img').each((i, elem) => {
-            const src = $(elem).attr('src');
-            if (src) {
-                images.push({
-                    src: src,
-                    alt: $(elem).attr('alt') || '',
-                    width: $(elem).attr('width') || '',
-                    height: $(elem).attr('height') || ''
-                });
-            }
-        });
-        return images;
-    }
+        // Manejo de diferentes escenarios de respuesta
+        if (!response) {
+            throw new Error('No se recibió respuesta del servidor');
+        }
 
-    extractText($) {
-        return $('p').map((i, elem) => $(elem).text().trim()).get();
-    }
+        if (response.status !== 200) {
+            console.error('Respuesta del servidor:', response);
+            throw new Error(`Error del servidor: ${response.status} - ${response.statusText}`);
+        }
 
-    countWords(text) {
-        return text.trim().split(/\s+/).length;
+        if (!response.data) {
+            throw new Error('No se recibieron datos del scraping');
+        }
+
+        return response;
+
+    } catch (error) {
+        console.error('Error completo en scrapeUrl:', error);
+
+        // Manejo detallado de diferentes tipos de errores
+        if (error.code === 'ECONNABORTED') {
+            throw new Error('Tiempo de espera agotado. El servidor no responde.');
+        }
+
+        if (error.response) {
+            // El servidor respondió con un código de error
+            console.error('Detalles del error del servidor:', error.response.data);
+            throw new Error(`Error del servidor: ${error.response.status} - ${error.response.statusText}`);
+        }
+
+        if (error.request) {
+            // La solicitud se hizo pero no se recibió respuesta
+            console.error('Sin respuesta del servidor:', error.request);
+            throw new Error('No se pudo conectar con el servidor. Compruebe la conexión.');
+        }
+
+        // Error de configuración u otro tipo de error
+        throw new Error(error.message || 'Error de conexión con el servidor');
     }
-}
-module.exports = {
-    ScraperService: new ScraperService(),
-    DatabaseService: new DatabaseService()
+};
+
+export const getHistorialBusquedas = async () => {
+    try {
+        const response = await api.get('/scraper/history');
+        return response.data;
+    } catch (error) {
+        console.error('Error al obtener historial:', error);
+        throw new Error('Error al obtener el historial de búsquedas');
+    }
+};
+
+export const eliminarPropiedad = async (propertyId) => {
+    try {
+        const response = await api.delete(`/scraper/property/${propertyId}`);
+        return response.data;
+    } catch (error) {
+        console.error('Error al eliminar propiedad:', error);
+        throw new Error('Error al eliminar la propiedad');
+    }
 };

@@ -1,82 +1,155 @@
-// src/context/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from '../api/axios';
+import api from '../config/axios.config';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
-      
-      if (token && savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
-        } catch (e) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+    const checkAuth = async () => {
+        console.group('Verificación de Autenticación');
+        const token = localStorage.getItem('token');
+        console.log('Token encontrado:', !!token);
+
+        if (token) {
+            try {
+                console.log('Intentando validar token');
+                const response = await api.get('/auth/validate-token');
+                
+                console.log('Respuesta de validación:', {
+                    user: response.data.user ? 
+                        { 
+                            id: response.data.user.id, 
+                            username: response.data.user.username 
+                        } : 
+                        'Sin datos de usuario'
+                });
+
+                setUser(response.data.user);
+            } catch (error) {
+                console.error('Error validando token:', {
+                    message: error.message,
+                    response: error.response?.data
+                });
+                localStorage.removeItem('token');
+                setUser(null);
+            } finally {
+                console.groupEnd();
+            }
         }
-      }
-      setLoading(false);
+        setLoading(false);
     };
 
-    checkAuth();
-  }, []);
+    useEffect(() => {
+        checkAuth();
+    }, []);
 
-  const register = async (userData) => {
-    try {
-      const response = await axios.post('/auth/register', userData);
-      const { token, user: newUser } = response.data;
-      
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
-      
-      return response.data;
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Error en el registro';
-      throw new Error(errorMessage);
-    }
-  };
+    const register = async (userData) => {
+        console.group('Registro de Usuario');
+        try {
+            console.log('Datos de registro:', {
+                username: userData.username,
+                email: userData.email
+            });
 
-  const login = async (credentials) => {
-    try {
-      const response = await axios.post('/auth/login', credentials);
-      const { token, user: userData } = response.data;
+            const response = await api.post('/auth/register', userData);
+            const { token, user } = response.data;
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-      
-      return response.data;
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Error al iniciar sesión';
-      throw new Error(errorMessage);
-    }
-  };
+            console.log('Registro exitoso:', {
+                user: { 
+                    id: user.id, 
+                    username: user.username 
+                }
+            });
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-  };
+            localStorage.setItem('token', token);
+            setUser(user);
+            console.groupEnd();
+        } catch (error) {
+            console.error('Error en el registro:', {
+                message: error.message,
+                response: error.response?.data
+            });
+            
+            const errorMessage = error.response?.data?.error || 
+                                 error.message || 
+                                 'Error al registrar usuario';
+            
+            setError(errorMessage);
+            console.groupEnd();
+            throw error;
+        }
+    };
 
-  return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+    const login = async (credentials) => {
+        console.group('Login de Usuario');
+        try {
+            console.log('Intentando login:', {
+                email: credentials.email
+            });
+
+            const response = await api.post('/auth/login', credentials);
+            const { token, user } = response.data;
+
+            console.log('Login exitoso:', {
+                user: { 
+                    id: user.id, 
+                    username: user.username 
+                }
+            });
+
+            localStorage.setItem('token', token);
+            setUser(user);
+            console.groupEnd();
+            return user;
+        } catch (error) {
+            console.error('Error de login:', {
+                message: error.message,
+                response: error.response?.data
+            });
+            
+            const errorMessage = error.response?.data?.error || 
+                                 error.message || 
+                                 'Error de inicio de sesión';
+            
+            setError(errorMessage);
+            console.groupEnd();
+            throw error;
+        }
+    };
+
+    const logout = () => {
+        console.group('Cierre de Sesión');
+        console.log('Usuario desconectado');
+        localStorage.removeItem('token');
+        setUser(null);
+        console.groupEnd();
+    };
+
+    return (
+        <AuthContext.Provider
+            value={{
+                user,
+                loading,
+                error,
+                login,
+                logout,
+                checkAuth,
+                register,
+                setError // Añadido para poder limpiar errores manualmente
+            }}
+        >
+            {!loading && children}
+        </AuthContext.Provider>
+    );
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth debe usarse dentro de un AuthProvider');
-  }
-  return context;
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth debe usarse dentro de AuthProvider');
+    }
+    return context;
 };

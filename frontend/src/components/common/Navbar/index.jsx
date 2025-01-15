@@ -3,6 +3,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import logo from '../../../assets/images/logo.jpg';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -17,7 +18,13 @@ const Navbar = () => {
 
  return (
    <nav className="navbar">
-     <Link to="/" className="navbar-brand">Web Scraper</Link>
+     <Link to="/" className="navbar-brand">
+                    <img 
+                        src={logo} 
+                        alt="Web Scraper Logo" 
+                        className="navbar-logo"
+                    />
+                </Link>
      <div className="navbar-links">
        {user ? (
          <>

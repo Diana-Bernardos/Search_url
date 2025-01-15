@@ -1,15 +1,16 @@
 
 .navbar {
-  background: #fff;
+  background:#2f436d;
   padding: 1rem 2rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  color:var(--surface-color);
 }
 
 .navbar-brand {
-  color: #333;
+  color: #dad0d0;
   font-weight: bold;
   text-decoration: none;
   font-size: 1.2rem;
@@ -18,23 +19,36 @@
 .navbar-links {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 2rem;
 }
 
 .nav-link {
-  color: #666;
+  color: #dad0d0;
   text-decoration: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
   transition: all 0.3s;
+  font-weight: bold;
+
+  
 }
 
 .nav-link:hover {
   background: #f5f5f5;
 }
+.navbar-logo {
+  height: 100px;
+  width: auto;
+  border-radius: 20px;
+  transition: transform 0.2s ease;
+}
+
+.navbar-logo:hover {
+  transform: scale(1.05);
+}
 
 .logout-button {
-  background: #dc3545;
+  background: #f27059;
   color: white;
   border: none;
   padding: 0.5rem 1rem;

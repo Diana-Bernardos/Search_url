@@ -1,118 +1,115 @@
 /* src/pages/Dashboard/Dashboard.css */
 .dashboard-container {
-    min-height: calc(100vh - 64px);
-    padding: var(--spacing-xl);
-    background-color: var(--background-color);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  
+  
+}
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  font-size: 2rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-description {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.search-section {
+  max-width: 800px;
+  margin: 0 auto 2rem;
+}
+
+.search-form {
+  display: flex;
+  gap: 1rem;
+}
+
+.input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+}
+
+.url-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 3rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.url-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.submit-button {
+  padding: 0 2rem;
+  font-size: 1rem;
+  color: white;
+  background-color: #f27059;
+  border: none;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-text {
+  display: inline-block;
+  position: relative;
+}
+
+.error-message {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: var(--border-radius-md);
+  background-color: #fee2e2;
+  color: #dc2626;
+  font-size: 0.875rem;
+}
+
+.results-section {
+  margin-top: 2rem;
+}
+
+@media (max-width: 640px) {
+  .dashboard-container {
+      padding: 1rem;
   }
-  
-  .dashboard-header {
-    margin-bottom: var(--spacing-xl);
-    text-align: center;
-    animation: fadeIn 0.5s ease-out;
+
+  .search-form {
+      flex-direction: column;
   }
-  
-  .dashboard-header h1 {
-    color: var(--text-primary);
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: var(--spacing-sm);
+
+  .submit-button {
+      width: 100%;
+      padding: 0.75rem;
   }
-  
-  .welcome-message {
-    color: var(--text-secondary);
-    font-size: 1.125rem;
-  }
-  
-  .dashboard-content {
-    max-width: 1000px;
-    margin: 0 auto;
-  }
-  
-  .results-section {
-    margin-top: var(--spacing-xl);
-    background-color: var(--surface-color);
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-md);
-    animation: slideUp 0.5s ease-out;
-  }
-  
-  .results-title {
-    color: var(--text-primary);
-    font-size: 1.25rem;
-    font-weight: 600;
-    padding: var(--spacing-lg);
-    border-bottom: 1px solid var(--border-color);
-  }
-  
-  /* Responsive Design */
-  @media (max-width: 768px) {
-    .dashboard-container {
-      padding: var(--spacing-lg);
-    }
-  
-    .dashboard-header h1 {
-      font-size: 1.75rem;
-    }
-  
-    .welcome-message {
-      font-size: 1rem;
-    }
-  }
-  
-  @media (max-width: 480px) {
-    .dashboard-container {
-      padding: var(--spacing-md);
-    }
-  
-    .dashboard-header h1 {
-      font-size: 1.5rem;
-    }
-  
-    .results-title {
-      font-size: 1.125rem;
-    }
-  }
-  
-  /* Animaciones */
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
-  /* Estados de carga y error */
-  .loading-state {
-    text-align: center;
-    padding: var(--spacing-xl);
-    color: var(--text-secondary);
-  }
-  
-  .error-message {
-    margin: var(--spacing-lg) 0;
-    padding: var(--spacing-md);
-    background-color: #fee2e2;
-    border: 1px solid #fecaca;
-    border-radius: var(--border-radius-md);
-    color: var(--error-color);
-    animation: shake 0.5s ease-in-out;
-  }
-  
-  @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
-  }
+}

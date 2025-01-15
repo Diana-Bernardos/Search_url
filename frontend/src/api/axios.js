@@ -2,42 +2,58 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:3001/api',
-  headers: {
-      'Content-Type': 'application/json'
-  }
-})
+    baseURL: 'http://localhost:3001/api',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    timeout: 30000
+});
 
-
-// Añadir token a las peticiones
+// Interceptor para añadir el token
 instance.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
     }
-    return config;
-  },
-  error => Promise.reject(error)
 );
 
-// Logging
-instance.interceptors.request.use(
-  request => {
-    console.log('Enviando petición:', request.url, request.data);
-    return request;
-  }
-);
-
+// Interceptor para manejar errores
 instance.interceptors.response.use(
-  response => {
-    console.log('Respuesta recibida:', response.data);
-    return response;
-  },
-  error => {
-    console.error('Error en petición:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        // Si el error es 403 (Forbidden) y no hemos intentado renovar el token
+        if (error.response?.status === 403 && !originalRequest._retry) {
+            originalRequest._retry = true;
+
+            try {
+                // Intentar renovar el token
+                const response = await instance.post('/auth/refresh');
+                const { token } = response.data;
+
+                // Guardar nuevo token
+                localStorage.setItem('token', token);
+
+                // Actualizar el token en la petición original y reintentarla
+                originalRequest.headers.Authorization = `Bearer ${token}`;
+                return instance(originalRequest);
+            } catch (refreshError) {
+                // Si no se puede renovar el token, limpiar la sesión
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+                return Promise.reject(refreshError);
+            }
+        }
+
+        return Promise.reject(error);
+    }
 );
 
 export default instance;

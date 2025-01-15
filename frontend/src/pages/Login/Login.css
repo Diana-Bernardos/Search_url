@@ -4,12 +4,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: var(--spacing-lg);
+    
     background: linear-gradient(
       135deg,
       rgba(99, 102, 241, 0.1) 0%,
       rgba(99, 102, 241, 0.05) 100%
     );
+    
   }
   
   .login-card {
@@ -34,6 +35,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+    color:var(--text-secondary);
+   
+
   }
   
   .form-group {
@@ -46,16 +50,18 @@
     color: var(--text-secondary);
     font-size: 0.875rem;
     font-weight: 500;
-  }
+   
+   }
   
   .form-input {
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: 1rem 1rem;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-md);
+    border-radius: 15px;
     font-size: 1rem;
     transition: var(--transition-fast);
     background-color: white;
+    
   }
   
   .form-input:focus {
@@ -65,7 +71,8 @@
   }
   
   .form-input::placeholder {
-    color: #a0aec0;
+    color: #85abdd;
+    
   }
   
   .login-button {

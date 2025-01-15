@@ -1,70 +1,188 @@
-# Getting Started with Create React App
+# Web Scraper
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![Web Scraper Logo](../frontend/src/assets/images/logo.jpg);
 
-## Available Scripts
+## 📌 Descripción
+Web Scraper es una aplicación web que permite a los usuarios analizar y extraer información de cualquier sitio web. La aplicación proporciona una interfaz intuitiva para visualizar, filtrar y gestionar los datos extraídos.
 
-In the project directory, you can run:
+## 🚀 Características Principales
+- Análisis de URLs en tiempo real
+- Extracción de metadatos, títulos, enlaces e imágenes
+- Tabla interactiva con capacidades de filtrado
+- Sistema de autenticación de usuarios
+- Almacenamiento de histórico de búsquedas
+- Interfaz responsiva y amigable
 
-### `npm start`
+## 🛠️ Tecnologías Utilizadas
+### Frontend
+- React
+- Context API para gestión de estado
+- Axios para peticiones HTTP
+- Lucide React para iconos
+- CSS modular
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Backend
+- Node.js
+- Express
+- MySQL
+- Cheerio para web scraping
+- JWT para autenticación
+- Bcrypt para encriptación
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 📋 Requisitos Previos
+- Node.js (v14 o superior)
+- MySQL (v8 o superior)
+- npm o yarn
 
-### `npm test`
+## 🔧 Instalación
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Backend
+```bash
+# Clonar el repositorio
+git clone https://github.com/tu-usuario/web-scraper.git
 
-### `npm run build`
+# Navegar al directorio del backend
+cd web-scraper/backend
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+# Instalar dependencias
+npm install
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus configuraciones
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# Crear base de datos
+mysql -u root -p < database/schema.sql
 
-### `npm run eject`
+# Iniciar servidor
+npm run dev
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Frontend
+```bash
+# Navegar al directorio del frontend
+cd ../frontend
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+# Instalar dependencias
+npm install
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus configuraciones
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Iniciar aplicación
+npm start
+```
 
-## Learn More
+## 💾 Estructura de la Base de Datos
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Tabla `users`
+```sql
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Tabla `urls_scrapeadas`
+```sql
+CREATE TABLE urls_scrapeadas (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    url VARCHAR(2048) NOT NULL,
+    titulo VARCHAR(255),
+    descripcion TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```
 
-### Code Splitting
+### Tabla `propiedades_scrapeadas`
+```sql
+CREATE TABLE propiedades_scrapeadas (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    url_id INT NOT NULL,
+    nombre_propiedad VARCHAR(255) NOT NULL,
+    valor_propiedad TEXT,
+    FOREIGN KEY (url_id) REFERENCES urls_scrapeadas(id) ON DELETE CASCADE
+);
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 📁 Estructura del Proyecto
 
-### Analyzing the Bundle Size
+### Frontend
+```
+frontend/
+├── src/
+│   ├── assets/
+│   │   └── images/
+│   ├── components/
+│   │   ├── common/
+│   │   └── scraper/
+│   ├── context/
+│   ├── pages/
+│   ├── services/
+│   └── styles/
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Backend
+```
+backend/
+├── src/
+│   ├── config/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── routes/
+│   └── utils/
+```
 
-### Making a Progressive Web App
+## 🔄 Flujo de Datos
+1. Usuario ingresa URL en el frontend
+2. Frontend valida formato y envía petición al backend
+3. Backend realiza scraping usando Cheerio
+4. Se extraen y procesan los datos
+5. Se almacenan en la base de datos
+6. Se devuelven al frontend
+7. Se muestran en la tabla interactiva
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## 🔐 Seguridad
+- Autenticación mediante JWT
+- Contraseñas hasheadas con bcrypt
+- Validación de datos en frontend y backend
+- Protección contra SQL injection
+- Manejo seguro de sesiones
 
-### Advanced Configuration
+## 📱 Responsive Design
+- Diseño adaptable a diferentes dispositivos
+- Breakpoints para móvil, tablet y desktop
+- Optimización de imágenes y recursos
+- Interfaz fluida y accesible
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## 🛟 Manejo de Errores
+- Validación de URLs
+- Mensajes de error amigables
+- Retroalimentación visual de acciones
+- Registro de errores en servidor
 
-### Deployment
+## 🔍 Funcionalidades de la Tabla
+- Filtrado de resultados
+- Ordenamiento por columnas
+- Eliminación de propiedades
+- Paginación de resultados
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## 👥 Contribución
+1. Fork el proyecto
+2. Crea tu rama de características (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
 
-### `npm run build` fails to minify
+## 📄 Licencia
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE.md](LICENSE.md) para más detalles.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## ✉️ Contacto
+Diana - 
+
