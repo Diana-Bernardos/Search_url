@@ -1,4 +1,4 @@
-import axios from '../config/axios.config'; // Asegúrate de importar correctamente
+import api from '../config/axios.config'; // Asegúrate de importar correctamente
 
 export const preAnalyzeUrl = async (url) => {
     try {
@@ -11,7 +11,7 @@ export const preAnalyzeUrl = async (url) => {
             ? url 
             : `https://${url.replace(/^\/+/, '')}`;
 
-        const response = await axios.post('/scraper/pre-analyze', { url: formattedUrl });
+        const response = await api.post('/scraper/pre-analyze', { url: formattedUrl });
 
         if (!response.data) {
             throw new Error('No se recibieron datos del pre-análisis');
@@ -39,7 +39,7 @@ export const removeProperty = async (propertyId) => {
             throw new Error('ID de propiedad no válido');
         }
 
-        const response = await axios.post('/scraper/delete-property', { propertyId });
+        const response = await api.post('/scraper/delete-property', { propertyId });
 
         if (!response.data.success) {
             throw new Error(response.data.error || 'Error al eliminar la propiedad');
@@ -57,6 +57,7 @@ export const removeProperty = async (propertyId) => {
     }
 };
 
+// En tu scraperService.js
 export const scrapeUrl = async (url) => {
     try {
         // Validación y formateo de URL
@@ -68,36 +69,48 @@ export const scrapeUrl = async (url) => {
             ? url 
             : `https://${url.replace(/^\/+/, '')}`;
 
-        const response = await axios.post('/scraper', { 
-            url: formattedUrl 
+        console.group('Scraping URL');
+        console.log('URL formateada:', formattedUrl);
+        
+        const response = await api.post('/scraper', { url: formattedUrl }, {
+            timeout: 300000 // 5 minutos
         });
 
-        // Manejo de diferentes escenarios de respuesta
-        if (!response) {
-            throw new Error('No se recibió respuesta del servidor');
-        }
+        console.log('Respuesta completa:', response);
+        console.groupEnd();
 
-        if (!response.data) {
-            throw new Error('No se recibieron datos del scraping');
+        // Verificaciones adicionales
+        if (response && response.data && response.data.success) {
+            return response.data;
+        } else {
+            throw new Error('Respuesta inesperada del servidor');
         }
-
-        return response;
 
     } catch (error) {
-        console.error('Error completo en scrapeUrl:', error);
+        console.error('Error en scrapeUrl:', {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            response: error.response
+        });
+        console.groupEnd();
+        if (error.code === 'ECONNABORTED') {
+            throw new Error('La operación de scraping ha excedido el tiempo límite. Por favor, inténtelo de nuevo más tarde.');
+        }
 
-        // Manejo detallado de diferentes tipos de errores
+
+
+        // Manejo específico de errores
         if (error.response) {
-            console.error('Detalles del error del servidor:', error.response.data);
-            throw new Error(`Error del servidor: ${error.response.status} - ${error.response.statusText}`);
+            throw new Error(
+                error.response.data?.error || 
+                `Error del servidor: ${error.response.status}`
+            );
         }
 
-        if (error.request) {
-            console.error('Sin respuesta del servidor:', error.request);
-            throw new Error('No se pudo conectar con el servidor. Compruebe la conexión.');
-        }
-
-        // Error de configuración u otro tipo de error
-        throw new Error(error.message || 'Error de conexión con el servidor');
+        throw new Error(
+            error.message || 
+            'Error de conexión con el servidor'
+        );
     }
 };

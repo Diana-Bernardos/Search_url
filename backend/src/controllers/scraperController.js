@@ -1,4 +1,4 @@
-// src/controllers/scraperController.js
+const puppeteer = require('puppeteer');
 const pool = require('../config/database');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -105,184 +105,221 @@ const preAnalyzeUrl = async (req, res) => {
         });
     }
 };
-// Scraping principal (manteniendo tu lógica actual)
+
 const scrapeUrl = async (req, res) => {
+    console.time('scraping');
+    console.log('Iniciando scraping para:', req.body.url);
+
+    let browser;
     let connection;
     try {
-        const { url } = req.body;
-        
-        // Log detallado de la solicitud
-        console.log('Solicitud de scraping recibida:', {
-            url,
-            user: req.user // Mostrar información del usuario
-        });
+        // Verificar y obtener userId de manera segura
+        const userId = req.user?.id;
+
+        // Destructuración segura con valor por defecto
+        const { url } = req.body || {};
+
+        console.group('Scraping Detallado');
+        console.log('Inicio de scraping');
+        console.log('URL recibida:', url);
+        console.log('ID de usuario:', userId);
+
+        // Validaciones iniciales más robustas
+        if (!userId) {
+            console.warn('Usuario no autenticado');
+            return res.status(401).json({ 
+                success: false,
+                error: 'Usuario no autenticado' 
+            });
+        }
 
         if (!url) {
             return res.status(400).json({ 
+                success: false,
                 error: 'URL es requerida' 
             });
         }
 
-        // Realizar scraping
-        const response = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-                'Accept-Language': 'es-ES,es;q=0.9'
-            },
-            timeout: 15000,
-            maxRedirects: 5
+        // Validación adicional de URL
+        try {
+            new URL(url);
+        } catch (err) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'URL inválida' 
+            });
+        }
+
+        // Configuración de navegador más robusta
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage'
+            ]
         });
 
-        // Procesar respuesta
-        const $ = cheerio.load(response.data);
+        const page = await browser.newPage();
 
-        const properties = {
-            title: $('title').text().trim() || 'Sin título',
-            metaDescription: $('meta[name="description"]').attr('content') || 'Sin descripción',
-            headings: {
-                h1: $('h1').length,
-                h2: $('h2').length,
-                h3: $('h3').length
-            },
-            links: $('a').length,
-            images: $('img').length,
-            paragraphs: $('p').length,
-            metadata: {
-                keywords: $('meta[name="keywords"]').attr('content') || '',
-                author: $('meta[name="author"]').attr('content') || '',
-                robots: $('meta[name="robots"]').attr('content') || ''
-            },
-            socialMeta: {
-                ogTitle: $('meta[property="og:title"]').attr('content') || '',
-                ogDescription: $('meta[property="og:description"]').attr('content') || '',
-                ogImage: $('meta[property="og:image"]').attr('content') || ''
-            }
-        };
+        // Configuraciones para evitar bloqueos
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+        
+        // Navegar a la página con mayor tolerancia
+        try {
+            await page.goto(url, { 
+                waitUntil: 'networkidle2', 
+                timeout: 60000 
+            });
+        } catch (navigationError) {
+            console.error('Error de navegación:', navigationError);
+            await browser.close();
+            return res.status(500).json({
+                success: false,
+                error: 'No se pudo cargar la página',
+                details: navigationError.message
+            });
+        }
 
-        // Respuesta exitosa
-        res.json({
-            success: true,
-            data: {
-                properties: properties,
-                url: url
-            }
+        // Extraer metadatos
+        const pageMetadata = await page.evaluate(() => {
+            return {
+                title: document.title,
+                description: document.querySelector('meta[name="description"]')?.content || '',
+                headings: {
+                    h1: document.querySelectorAll('h1').length,
+                    h2: document.querySelectorAll('h2').length,
+                    h3: document.querySelectorAll('h3').length
+                },
+                links: document.querySelectorAll('a').length,
+                images: document.querySelectorAll('img').length,
+                socialMeta: {
+                    ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
+                    ogDescription: document.querySelector('meta[property="og:description"]')?.content || '',
+                    ogImage: document.querySelector('meta[property="og:image"]')?.content || ''
+                }
+            };
         });
 
-        // Análisis con IA de Ollama
+        // Cerrar navegador
+        await browser.close();
+
+        // Análisis con IA (opcional)
+        let aiAnalysis = 'No se pudo realizar el análisis con IA';
         try {
             const aiResponse = await axios.post('http://localhost:11434/api/generate', {
                 model: 'llama3.2:3b-instruct-q8_0',
-                prompt: `Analiza esta propiedad inmobiliaria:
-                Título: ${properties.title}
-                Descripción: ${properties.metaDescription}
-            
-                Información clave:
-                - Precio: ${properties.price || 'No especificado'}
-                - Ubicación: ${properties.location || 'No especificada'}
-                - Habitaciones: ${properties.rooms || 'No especificado'}
-            
-                Proporciona un análisis detallado y recomendaciones:
-                1. Evalúa si esta propiedad es una buena inversión
-                2. Compara con el mercado inmobiliario actual
-                3. Recomienda aspectos positivos y mejoras potenciales
-                4. Sugerencias para el comprador o inversor
-                5. Potencial de revalorización
-            
-                Formato de respuesta:
-                - Resumen general
-                - Puntos fuertes
-                - Puntos a mejorar
-                - Recomendación final`,
+                prompt: `Analiza esta página web:
+                Título: ${pageMetadata.title}
+                Descripción: ${pageMetadata.description}
+                Elementos: ${JSON.stringify(pageMetadata.headings)}
+                
+                Proporciona un análisis conciso sobre:
+                1. Calidad del SEO
+                2. Estructura de la página
+                3. Recomendaciones de mejora`,
                 stream: false
             });
 
-            console.log('Respuesta completa de IA:', aiResponse.data);
-    console.log('Texto de la respuesta de IA:', aiResponse.data.response);
-
-
-            properties.aiAnalysis = aiResponse.data.response;
+            aiAnalysis = aiResponse.data.response || aiAnalysis;
         } catch (aiError) {
             console.error('Error en análisis IA:', aiError);
-            properties.aiAnalysis = 'No se pudo realizar el análisis con IA';
         }
-        
 
-        // Guardar en base de datos
+        // Conexión a base de datos
         connection = await pool.getConnection();
+        
+        // Iniciar transacción
         await connection.beginTransaction();
 
-        const [result] = await connection.execute(
+        // Insertar URL scrapeada
+        const [urlResult] = await connection.execute(
             'INSERT INTO urls_scrapeadas (user_id, url, titulo, descripcion) VALUES (?, ?, ?, ?)',
-            [userId, url, properties.title, properties.metaDescription]
+            [userId, url, pageMetadata.title, pageMetadata.description]
         );
 
-        // Guardar propiedades (manteniendo tu lógica actual)
-        for (const [key, value] of Object.entries(properties)) {
+        const urlId = urlResult.insertId;
+
+        // Insertar propiedades
+        for (const [key, value] of Object.entries(pageMetadata)) {
             if (typeof value === 'object') {
                 for (const [subKey, subValue] of Object.entries(value)) {
                     await connection.execute(
                         'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
-                        [result.insertId, `${key}_${subKey}`, String(subValue)]
+                        [urlId, `${key}_${subKey}`, String(subValue)]
                     );
                 }
             } else {
                 await connection.execute(
                     'INSERT INTO propiedades_scrapeadas (url_id, nombre_propiedad, valor_propiedad) VALUES (?, ?, ?)',
-                    [result.insertId, key, String(value)]
+                    [urlId, key, String(value)]
                 );
             }
         }
 
-        // Guardar análisis de IA
-        if (properties.aiAnalysis) {
+        // Insertar análisis de IA
+        if (aiAnalysis && aiAnalysis !== 'No se pudo realizar el análisis con IA') {
             await connection.execute(
                 'INSERT INTO recomendaciones_ia (url_id, recomendacion) VALUES (?, ?)',
-                [result.insertId, properties.aiAnalysis]
+                [urlId, aiAnalysis]
             );
         }
 
+        // Commit de la transacción
         await connection.commit();
-        
+
+        console.log('Scraping completado exitosamente');
+        console.groupEnd();
+
         res.json({
-            message: 'Scraping completado exitosamente',
+            success: true,
             data: {
-                properties: properties,
-                aiRecommendation: properties.aiAnalysis
+                properties: pageMetadata,
+                aiRecommendation: aiAnalysis
             }
         });
 
-
     } catch (error) {
-        console.error('Error en scrapeUrl:', error);
-        
+        console.error('Error detallado en scraping:', {
+            mensaje: error.message,
+            código: error.code,
+            pila: error.stack
+        });
+        console.groupEnd();
+
+        // Rollback en caso de error
         if (connection) {
-            await connection.rollback();
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error('Error en rollback:', rollbackError);
+            }
         }
 
-        if (error.code === 'ECONNREFUSED') {
-            return res.status(400).json({ error: 'No se pudo conectar con la URL proporcionada' });
+        // Cerrar navegador si está abierto
+        if (browser) {
+            try {
+                await browser.close();
+            } catch (browserCloseError) {
+                console.error('Error cerrando navegador:', browserCloseError);
+            }
         }
 
-        if (error.response?.status) {
-            return res.status(error.response.status).json({
-                error: `Error al acceder a la URL: ${error.message}`
-            });
-        }
-
+        // Enviar respuesta de error
         res.status(500).json({
+            success: false,
             error: 'Error al procesar la URL',
             details: error.message
         });
-
     } finally {
+        // Liberar conexión de base de datos
         if (connection) {
             connection.release();
         }
     }
 };
 
-// Historial (usando POST en lugar de GET)
 const getScrapingHistory = async (req, res) => {
     let connection;
     try {
@@ -310,11 +347,10 @@ const getScrapingHistory = async (req, res) => {
     }
 };
 
-// Eliminar propiedad (usando POST en lugar de DELETE)
 const deleteProperty = async (req, res) => {
     let connection;
     try {
-        const { propertyId } = req.body;  // Cambio de req.params a req.body
+        const { propertyId } = req.body;
         const userId = req.user.id;
 
         connection = await pool.getConnection();

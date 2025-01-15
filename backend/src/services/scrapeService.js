@@ -1,6 +1,6 @@
 import api from '../config/axios.config'; // Ajusta la ruta de importación
 
-export const preAnalyzeUrl = async (url) => {
+export const AnalyzeUrl = async (url) => {
     try {
         // Validación y formateo de URL
         if (!url || typeof url !== 'string') {

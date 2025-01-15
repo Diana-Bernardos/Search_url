@@ -1,71 +1,61 @@
-// src/config/axios.config.js
 import axios from 'axios';
 
-const instance = axios.create({
-    baseURL: 'http://localhost:3001/api',
-    timeout: 30000,
+const api = axios.create({
+    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api', 
+    timeout: 30000, // Reducir tiempo de espera
     headers: {
         'Content-Type': 'application/json'
-    }
+    },
+    withCredentials: true // Añadir credenciales
 });
 
-// Interceptor para el token
-instance.interceptors.request.use(
+// Interceptor de solicitudes
+api.interceptors.request.use(
     config => {
+        console.group('Solicitud Axios');
+        console.log('URL base:', config.baseURL);
+        console.log('URL completa:', config.url);
+        console.log('Método:', config.method);
+
         const token = localStorage.getItem('token');
-        console.log('Token para solicitud:', token);
+        
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
-            console.log('Token añadido a la solicitud:', token); // Log para depuración
+            console.log('Token añadido');
         } else {
-            console.warn('No se encontró token de autenticación'); // Log de advertencia
+            console.warn('No se encontró token de autenticación');
         }
+
+        console.groupEnd();
+        
         return config;
     },
     error => {
-        return Promise.reject(error);
-    },
-
-// Interceptor para manejar errores
-instance.interceptors.response.use(
-    response => response,
-    error => {
-        if (error.response) {
-            // Error con respuesta del servidor
-            if (error.response.status === 401) {
-                localStorage.removeItem('token');
-                window.location.href = '/login';
-            }
-            return Promise.reject(error);
-        } else if (error.request) {
-            // Error de red
-            return Promise.reject(new Error('Error de conexión con el servidor'));
-        }
+        console.error('Error en interceptor de solicitud:', error);
         return Promise.reject(error);
     }
-),
-
-// Interceptor para manejar errores globalmente
-axios.interceptors.response.use(
-    response => response,
-    error => {
-        console.error('Error de Axios:', error);
-        
-        if (error.response) {
-            // El servidor respondió con un código de error
-            console.error('Datos de error:', error.response.data);
-            console.error('Código de estado:', error.response.status);
-        } else if (error.request) {
-            // La solicitud se hizo pero no se recibió respuesta
-            console.error('Sin respuesta del servidor:', error.request);
-        } else {
-            // Algo sucedió al configurar la solicitud
-            console.error('Error de configuración:', error.message);
-        }
-        
-        return Promise.reject(error);
-    }),
 );
 
+// Interceptor de respuestas
+api.interceptors.response.use(
+    response => response,
+    error => {
+        console.error('Error en interceptor de respuesta:', {
+            url: error.config?.url,
+            method: error.config?.method,
+            name: error.name,
+            message: error.message,
+            code: error.code
+        });
 
-export default instance;
+        // Manejo específico de errores de red
+        if (error.code === 'ERR_NETWORK') {
+            console.error('Error de red: No se puede conectar con el servidor');
+            throw new Error('No se puede conectar con el servidor. Verifique su conexión de red.');
+        }
+
+        return Promise.reject(error);
+    }
+);
+
+export default api;

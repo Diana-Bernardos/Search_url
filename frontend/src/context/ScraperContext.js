@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { 
     scrapeUrl, 
     preAnalyzeUrl, 
-    deleteProperty 
+    removeProperty as removePropertyService 
 } from '../services/scraperService';
 
 const ScraperContext = createContext(null);
@@ -21,31 +21,36 @@ export const ScraperProvider = ({ children }) => {
             if (!url || typeof url !== 'string') {
                 throw new Error('URL inválida. Debe ser una cadena de texto.');
             }
-    
+
             // Asegurar que la URL tenga un protocolo
-            const formattedUrl = url.match(/^https?:\/\//) 
-                ? url 
+            const formattedUrl = url.match(/^https?:\/\//)
+                ? url
                 : `https://${url.replace(/^\/+/, '')}`;
-    
+
+            console.group('Análisis de URL');
+            console.log('URL formateada:', formattedUrl);
+
             // Primero hacemos el pre-análisis
             const preAnalysisResult = await preAnalyzeUrl(formattedUrl);
             setPreAnalysis(preAnalysisResult);
-    
+
             // Luego hacemos el análisis completo
             const response = await scrapeUrl(formattedUrl);
-    
+
             const formattedResults = {
                 data: {
                     url: formattedUrl,
-                    properties: response.data?.data?.properties || {}, 
-                    aiRecommendation: response.data?.data?.aiRecommendation || '',
+                    properties: response.data?.properties || {},
+                    aiRecommendation: response.data?.aiRecommendation || '',
                     preAnalysis: preAnalysisResult
                 }
             };
-    
+
             console.log('Resultados formateados:', formattedResults);
+            console.groupEnd();
+
             setResults(formattedResults);
-    
+
             return formattedResults;
         } catch (err) {
             console.error('Error completo en analyzeUrl:', err);
@@ -56,16 +61,16 @@ export const ScraperProvider = ({ children }) => {
         }
     };
 
-    const deleteProperty = async (propertyId) => {
+    const removeProperty = async (propertyId) => {
         try {
-            await deleteProperty(propertyId);
-            
+            await removePropertyService(propertyId);
+
             setResults(prevResults => {
                 if (!prevResults?.data?.properties) return prevResults;
-                
+
                 const newProperties = { ...prevResults.data.properties };
                 delete newProperties[propertyId];
-                
+
                 return {
                     data: {
                         ...prevResults.data,
@@ -88,7 +93,7 @@ export const ScraperProvider = ({ children }) => {
                 loading,
                 error,
                 analyzeUrl,
-                
+                removeProperty,
                 setError
             }}
         >

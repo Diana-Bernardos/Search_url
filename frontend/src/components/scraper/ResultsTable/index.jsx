@@ -27,43 +27,28 @@ const ResultsTable = () => {
         key: null,
         direction: 'asc'
     });
-
     const tableData = useMemo(() => {
-        if (!results?.data?.properties) return [];
-
+        console.log('Resultados completos:', results);
+    
+        if (!results?.data) return [];
+    
         try {
-            const properties = results.data.properties;
             const data = [];
-
-            // Estrategias de procesamiento de datos
-            const processingStrategies = {
-                'Precio': (value) => {
-                    const price = parseFloat(value.replace(/[^\d.]/g, ''));
-                    return { 
-                        id: 'price', 
-                        property: 'Precio', 
-                        value: price ? `${price.toLocaleString()}€` : 'No especificado',
-                        numericValue: price || 0
-                    };
-                },
-                'Habitaciones': (value) => ({
-                    id: 'rooms',
-                    property: 'Habitaciones', 
-                    value: value,
-                    numericValue: parseInt(value) || 0
-                }),
-                'Ubicación': (value) => ({
-                    id: 'location',
-                    property: 'Ubicación',
-                    value: value
-                })
-            };
-
-            // Procesar datos con estrategias específicas
+    
+            // Procesar propiedades si existen
+            const properties = results.data.properties || {};
+            
+            // Convertir propiedades en entradas de tabla
             Object.entries(properties).forEach(([key, value]) => {
-                const strategy = processingStrategies[key];
-                if (strategy) {
-                    data.push(strategy(value));
+                // Manejar objetos anidados
+                if (typeof value === 'object' && value !== null) {
+                    Object.entries(value).forEach(([subKey, subValue]) => {
+                        data.push({
+                            id: `${key}_${subKey}`,
+                            property: `${key} - ${subKey}`,
+                            value: String(subValue)
+                        });
+                    });
                 } else {
                     data.push({
                         id: key,
@@ -72,18 +57,19 @@ const ResultsTable = () => {
                     });
                 }
             });
-
+    
             // Añadir recomendación de IA
             if (results.data.aiRecommendation) {
                 data.push({
                     id: 'ai_recommendation',
                     property: 'Recomendación IA',
-                    value: results.data.aiRecommendation,
-                    expanded: true // Nueva propiedad para expandir
+                    value: results.data.aiRecommendation
                 });
             }
-
+    
+            console.log('Datos procesados para tabla:', data);
             return data;
+    
         } catch (error) {
             console.error('Error al procesar datos:', error);
             return [];
