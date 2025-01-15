@@ -63,7 +63,8 @@ const ResultsTable = () => {
                 data.push({
                     id: 'ai_recommendation',
                     property: 'Recomendación IA',
-                    value: results.data.aiRecommendation
+                    value: results.data.aiRecommendation,
+                    isAiRecommendation: true // Añade esta propiedad
                 });
             }
     
@@ -305,47 +306,38 @@ const ResultsTable = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedData.map((item) => (
-                            <tr 
-                                key={item.id} 
-                                className={item.isAiRecommendation ? 'ai-recommendation-row' : ''}
-                            >
-                                <td 
-                                    className="truncated-cell" 
-                                    data-full-text={item.property}
-                                >
-                                    {item.property}
-                                </td>
-                                <td 
-                                    className={`truncated-cell ${item.isAiRecommendation ? 'ai-recommendation' : ''}`} 
-                                    data-full-text={item.value}
-                                >
-                                    {item.value.length > 100 && !item.isAiRecommendation 
-                                        ? item.value.slice(0, 100) + '...' 
-                                        : item.value}
-                                </td>
-                                <td>
-                                    {item.isAiRecommendation ? (
-                                        <button
-                                            className="view-recommendation-button"
-                                            onClick={() => setSelectedRecommendation(item.value)}
-                                            title="Ver recomendación completa"
-                                        >
-                                            <FaEye />
-                                        
-                                        </button>
-                                    ) : (
-                                        <button
-                                            className="delete-button"
-                                            onClick={() => handleDelete(item.id)}
-                                            title="Eliminar propiedad"
-                                        >
-                                            <MinusCircle />
-                                        </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
+                    {sortedData.map((item) => (
+    <tr 
+        key={item.id} 
+        className={item.isAiRecommendation ? 'ai-recommendation-row' : ''}
+    >
+        <td>{item.property}</td>
+        <td>
+            {item.isAiRecommendation 
+                ? "Haz clic en el ícono del ojo para ver la recomendación completa" 
+                : item.value}
+        </td>
+        <td>
+            {item.isAiRecommendation ? (
+                <button
+                    className="view-recommendation-button"
+                    onClick={() => setSelectedRecommendation(item.value)}
+                    title="Ver recomendación completa"
+                >
+                    <FaEye size={16} />
+                </button>
+            ) : (
+                <button
+                    className="delete-button"
+                    onClick={() => handleDelete(item.id)}
+                    title="Eliminar propiedad"
+                >
+                    <MinusCircle />
+                </button>
+            )}
+        </td>
+    </tr>
+))}
                         {sortedData.length === 0 && (
                             <tr>
                                 <td colSpan="3" className="no-results">
@@ -359,24 +351,26 @@ const ResultsTable = () => {
 
             {/* Modal para recomendación de IA */}
             {selectedRecommendation && (
-                <div className="ai-recommendation-modal" onClick={() => setSelectedRecommendation(null)}>
-                    <div 
-                        className="modal-content" 
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <button 
-                            className="modal-close-button" 
-                            onClick={() => setSelectedRecommendation(null)}
-                        >
-                            <XCircle />
-                        </button>
-                        <h2>Recomendación de IA</h2>
-                        <div className="modal-recommendation-text">
-                            {selectedRecommendation}
-                        </div>
-                    </div>
-                </div>
-            )}
+    <div className="ai-recommendation-modal" onClick={() => setSelectedRecommendation(null)}>
+        <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()}
+        >
+            <button 
+                className="modal-close-button" 
+                onClick={() => setSelectedRecommendation(null)}
+            >
+                <XCircle />
+            </button>
+            <h2>Recomendación de IA</h2>
+            <div className="modal-recommendation-text">
+                {selectedRecommendation.split('\n').map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                ))}
+            </div>
+        </div>
+    </div>
+)}
         </div>
     );
 };
